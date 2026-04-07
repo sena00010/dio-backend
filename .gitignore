@@ -1,2 +1,4 @@
 firebase-admin.json
 .env
+node_modules/
+*.exe
