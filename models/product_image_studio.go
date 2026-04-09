@@ -78,3 +78,18 @@ type ProductImageAdVariant struct {
 	CreatedAt     time.Time `json:"created_at"`
 	UpdatedAt     time.Time `json:"updated_at"`
 }
+
+// StudioBrief — kullanıcının kaydettiği yeniden kullanılabilir brief'ler
+type StudioBrief struct {
+	ID         uint      `gorm:"primaryKey" json:"id"`
+	CompanyID  uint      `gorm:"index;not null" json:"company_id"`
+	StudioID   *uint     `gorm:"index" json:"studio_id,omitempty"`
+	Title      string    `gorm:"size:255;not null;default:'Yeni Brief'" json:"title"`
+	Content    string    `gorm:"type:text;not null" json:"content"`
+	BriefType  string    `gorm:"size:50;not null;default:'genel'" json:"brief_type"`
+	Tags       string    `gorm:"size:500" json:"tags,omitempty"`
+	IsFavorite bool      `gorm:"default:false" json:"is_favorite"`
+	UsedCount  int       `gorm:"default:0" json:"used_count"`
+	CreatedAt  time.Time `json:"created_at"`
+	UpdatedAt  time.Time `json:"updated_at"`
+}

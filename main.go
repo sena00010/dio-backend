@@ -132,6 +132,13 @@ func main() {
 		api.POST("/protected/product-image-studio/variants/:variantID/select", handlers.SelectProductImageVariant)
 		api.POST("/protected/product-image-studio/ad-variants/:variantID/select", handlers.SelectProductImageAdVariant)
 
+		// Studio Brief Kütüphanesi
+		api.GET("/protected/studio-briefs", handlers.ListStudioBriefs)
+		api.POST("/protected/studio-briefs", handlers.CreateStudioBrief)
+		api.PATCH("/protected/studio-briefs/:id", handlers.UpdateStudioBrief)
+		api.DELETE("/protected/studio-briefs/:id", handlers.DeleteStudioBrief)
+		api.POST("/protected/studio-briefs/:id/use", handlers.UseStudioBrief)
+
 		// ──────────────────────────────────────────
 		// SEO rotaları (JWT + SEO rol kontrolü)
 		// ──────────────────────────────────────────

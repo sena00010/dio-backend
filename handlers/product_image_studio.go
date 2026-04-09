@@ -94,22 +94,22 @@ func GetProductStudioSidebar(c *gin.Context) {
 		"modules": []productStudioModule{
 			{
 				Key:         "product-image-studio",
-				Label:       "Urun Gorseli Studyosu",
+				Label:       "Ürün Görseli Stüdyosu",
 				Icon:        "🖼️",
 				Route:       "/creative/product-image-studio",
 				Enabled:     true,
 				Active:      true,
-				Description: "AI ile urun gorselini pazar yeri ve sosyal medya varyantlarina donusturur.",
+				Description: "AI ile ürün görselini pazar yeri ve sosyal medya varyantlarına dönüştürür.",
 			},
 			{
 				Key:         "ad-studio",
-				Label:       "Reklam Studyosu",
+				Label:       "Reklam Stüdyosu",
 				Icon:        "📣",
 				Route:       "/creative/ad-studio",
 				Enabled:     true,
 				Active:      false,
-				Badge:       "YENI",
-				Description: "Tek gorselden banner, story ve feed reklam kreatifleri uretir.",
+				Badge:       "YENİ",
+				Description: "Tek görselden banner, story ve feed reklam kreatifler üretir.",
 			},
 		},
 	})
@@ -826,7 +826,7 @@ func runProductAdStudioGeneration(job *productStudioJob, company models.Company,
 				CTA:         v.CTA,
 			}
 			prompt := utils.BuildAdStudioPrompt(company, studio, p, referenceSummary, copyPayload)
-			provider := selectProvider(detectAvailableProviders(), idx)
+			provider := "openai-image-edit"
 
 			database.DB.Model(&v).Updates(map[string]interface{}{
 				"status":   "generating",
@@ -834,33 +834,20 @@ func runProductAdStudioGeneration(job *productStudioJob, company models.Company,
 				"provider": provider,
 			})
 
-			ctx := utils.BrandContext{
-				BrandName:      company.Name,
-				Sector:         company.Sector,
-				TargetAudience: company.TargetAudience,
-				BrandColors:    company.BrandColors,
-				ToneOfVoice:    company.ToneOfVoice,
-				Description:    company.Description,
-				BrandFont:      company.BrandFont,
-				Platform:       p.Platform,
-				Headline:       v.Headline,
-				SubText:        v.SubHeadline,
-				ImagePrompt:    prompt,
-				Style:          "realistic",
-				TextPosition:   p.TextPosition,
-			}
-
-			imageURL, err := utils.GenerateBrandImage(ctx)
+			// Oncelikle kaynak gorseli AI'ya gonderip uretim yap (ChatGPT tarzi)
+			imageURL, err := utils.GenerateProductImageWithSource(studio.SourceImageURL, prompt)
 			update := map[string]interface{}{
 				"prompt":   prompt,
 				"provider": provider,
 				"status":   "ready",
 			}
 			if err != nil {
-				log.Printf("⚠️ Ad studio varyanti fallback'a dustu (%s): %v", v.Name, err)
+				log.Printf("⚠️ Ad studio kaynak gorsel ile uretim basarisiz (%s): %v", v.Name, err)
 				update["preview_url"] = studio.SourceImageURL
+				update["design_notes"] = p.DesignNotes + " | Gorsel uretim basarisiz, kaynak gorsel korundu."
 			} else {
 				update["preview_url"] = imageURL
+				update["provider"] = "openai-with-source"
 			}
 			database.DB.Model(&v).Updates(update)
 
