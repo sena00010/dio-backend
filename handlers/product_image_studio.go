@@ -736,7 +736,7 @@ func runProductStudioGeneration(job *productStudioJob, company models.Company, s
 		func(v models.ProductImageVariant, p utils.ProductStudioPreset) {
 			defer func() { <-concurrentSemaphore }()
 
-			prompt := utils.BuildProductStudioPrompt(company, studio, p, referenceSummary)
+			prompt := utils.BuildProductImageEditPrompt(studio, p, referenceSummary)
 			provider := "openai-image-edit"
 
 			database.DB.Model(&v).Updates(map[string]interface{}{
@@ -751,31 +751,20 @@ func runProductStudioGeneration(job *productStudioJob, company models.Company, s
 				"provider": provider,
 			}
 			if err != nil {
-				log.Printf("⚠️ Product studio image-edit basarisiz (%s), fallback devrede: %v", v.Name, err)
-				ctx := utils.BrandContext{
-					BrandName:      company.Name,
-					Sector:         company.Sector,
-					TargetAudience: company.TargetAudience,
-					BrandColors:    company.BrandColors,
-					ToneOfVoice:    company.ToneOfVoice,
-					Description:    company.Description,
-					BrandFont:      company.BrandFont,
-					Platform:       p.Platform,
-					Headline:       v.Name,
-					SubText:        p.DesignNotes,
-					ImagePrompt:    prompt,
-					Style:          "realistic",
-					TextPosition:   "center",
-				}
-				imageURL, err = utils.GenerateBrandImage(ctx)
+				log.Printf("⚠️ Product studio image-edit basarisiz (%s), fallback devrede (kaynak gorsel ile): %v", v.Name, err)
+				// Fallback: Kaynak gorseli Gemini'ye gonderip yeni tasarim uret
+				fallbackPrompt := utils.BuildProductStudioPrompt(company, studio, p, referenceSummary)
+				imageURL, err = utils.GenerateProductImageWithSource(studio.SourceImageURL, fallbackPrompt)
 				if err != nil {
+					log.Printf("❌ Fallback gorsel+prompt uretimi de basarisiz (%s): %v", v.Name, err)
 					update["status"] = "ready"
 					update["preview_url"] = studio.SourceImageURL
 					update["design_notes"] = p.DesignNotes + " | Image-edit ve fallback uretim basarisiz oldugu icin kaynak gorsel korundu."
 				} else {
 					update["status"] = "ready"
 					update["preview_url"] = imageURL
-					update["design_notes"] = p.DesignNotes + " | Image-edit yerine fallback tam uretim kullanildi."
+					update["provider"] = "openai-with-source"
+					update["design_notes"] = p.DesignNotes + " | Kaynak gorsel ChatGPT (gpt-image-1) ile uretildi."
 				}
 				database.DB.Model(&v).Updates(update)
 				atomic.AddInt32(&job.Completed, 1)
