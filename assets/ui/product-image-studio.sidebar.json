@@ -1,0 +1,23 @@
+{
+  "modules": [
+    {
+      "key": "product-image-studio",
+      "label": "Urun Gorseli Studyosu",
+      "icon": "🖼️",
+      "route": "/creative/product-image-studio",
+      "enabled": true,
+      "active": true,
+      "description": "AI ile urun gorsellerini pazar yeri ve sosyal medya varyantlarina donusturur."
+    },
+    {
+      "key": "ad-studio",
+      "label": "Reklam Studyosu",
+      "icon": "📣",
+      "route": "/creative/ad-studio",
+      "enabled": false,
+      "active": false,
+      "badge": "YENI",
+      "description": "Bir sonraki faz icin ayrilan kreatif reklam alani."
+    }
+  ]
+}

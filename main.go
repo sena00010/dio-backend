@@ -26,7 +26,7 @@ func main() {
 	r := gin.Default()
 
 	// CORS ayarları — Frontend'in backend'e erişimi için
-r.Use(cors.New(cors.Config{
+	r.Use(cors.New(cors.Config{
 		// YENİ ADRESİMİZİ LİSTEYE EKLEDİK!
 		AllowOrigins:     []string{"http://localhost:3000", "http://localhost:3001", "http://187.77.109.127:8000"},
 		AllowMethods:     []string{"GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"},
@@ -35,17 +35,17 @@ r.Use(cors.New(cors.Config{
 	}))
 
 	// Static dosya sunumu — CORS header'lı (frontend'den erişim için)
-r.GET("/uploads/*filepath", func(c *gin.Context) {
-        // BURAYI DA HERKESE AÇIK (YILDIZ) YAPIYORUZ Kİ RESİMLER GÖRÜNSÜN
-        c.Header("Access-Control-Allow-Origin", "*")
-        c.Header("Access-Control-Allow-Methods", "GET, OPTIONS")
-        c.Header("Access-Control-Allow-Headers", "Origin, Content-Type")
-        if c.Request.Method == "OPTIONS" {
-            c.AbortWithStatus(204)
-            return
-        }
-        c.File("./assets/uploads" + c.Param("filepath"))
-    })
+	r.GET("/uploads/*filepath", func(c *gin.Context) {
+		// BURAYI DA HERKESE AÇIK (YILDIZ) YAPIYORUZ Kİ RESİMLER GÖRÜNSÜN
+		c.Header("Access-Control-Allow-Origin", "*")
+		c.Header("Access-Control-Allow-Methods", "GET, OPTIONS")
+		c.Header("Access-Control-Allow-Headers", "Origin, Content-Type")
+		if c.Request.Method == "OPTIONS" {
+			c.AbortWithStatus(204)
+			return
+		}
+		c.File("./assets/uploads" + c.Param("filepath"))
+	})
 
 	// ──────────────────────────────────────────
 	// Auth rotaları (public)
@@ -112,7 +112,7 @@ r.GET("/uploads/*filepath", func(c *gin.Context) {
 		api.POST("/protected/trend-radar", handlers.GenerateTrendRadar)
 		api.POST("/protected/creative-dashboard", handlers.CreativeDashboard) // Combined paralel endpoint
 		api.POST("/protected/generate-creatives", handlers.GenerateCreatives)
-		api.POST("/protected/generate-description", handlers.GenerateDescription) // AI marka açıklaması
+		api.POST("/protected/generate-description", handlers.GenerateDescription)    // AI marka açıklaması
 		api.POST("/protected/generate-tone-examples", handlers.GenerateToneExamples) // AI ton örnekleri
 		api.POST("/protected/save-creative", handlers.SaveCreative)
 		api.POST("/protected/save-creative-idea", handlers.SaveCreativeIdea)
@@ -120,6 +120,17 @@ r.GET("/uploads/*filepath", func(c *gin.Context) {
 		api.POST("/protected/generate-creative-images", handlers.GenerateCreativeImages)
 		api.GET("/protected/creative-images-status", handlers.GetCreativeImagesStatus)
 		api.POST("/protected/migrate-ideas-to-posts", handlers.MigrateIdeasToPosts)
+		api.GET("/protected/product-image-studio/sidebar", handlers.GetProductStudioSidebar)
+		api.GET("/protected/product-image-studio", handlers.ListProductImageStudios)
+		api.POST("/protected/product-image-studio/upload", handlers.UploadProductImageStudioSource)
+		api.GET("/protected/product-image-studio/:id", handlers.GetProductImageStudio)
+		api.PATCH("/protected/product-image-studio/:id", handlers.UpdateProductImageStudio)
+		api.POST("/protected/product-image-studio/:id/analyze", handlers.AnalyzeProductImageStudio)
+		api.POST("/protected/product-image-studio/:id/generate", handlers.GenerateProductImageStudio)
+		api.POST("/protected/product-image-studio/:id/generate-ads", handlers.GenerateProductImageAdStudio)
+		api.GET("/protected/product-image-studio/jobs/:jobID", handlers.GetProductImageStudioJob)
+		api.POST("/protected/product-image-studio/variants/:variantID/select", handlers.SelectProductImageVariant)
+		api.POST("/protected/product-image-studio/ad-variants/:variantID/select", handlers.SelectProductImageAdVariant)
 
 		// ──────────────────────────────────────────
 		// SEO rotaları (JWT + SEO rol kontrolü)

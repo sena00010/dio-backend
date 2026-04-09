@@ -34,6 +34,9 @@ func Connect() {
 		&models.AiIdea{},
 		&models.TeamMember{},
 		&models.SeoIntegration{},
+		&models.ProductImageStudio{},
+		&models.ProductImageVariant{},
+		&models.ProductImageAdVariant{},
 	); err != nil {
 		log.Fatalf("❌ AutoMigrate hatası: %v", err)
 	}
