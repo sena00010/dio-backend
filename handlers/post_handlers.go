@@ -2,6 +2,7 @@ package handlers
 
 import (
 	"fmt"
+	"io"
 	"log"
 	"net/http"
 	"os"
@@ -11,6 +12,7 @@ import (
 	"github.com/gin-gonic/gin"
 	"github.com/kullaniciadiniz/dio-panel-backend/database"
 	"github.com/kullaniciadiniz/dio-panel-backend/models"
+	"github.com/kullaniciadiniz/dio-panel-backend/utils"
 )
 
 // ──────────────────────────────────────────────
@@ -32,7 +34,45 @@ func UploadCanvas(c *gin.Context) {
 		return
 	}
 
-	// Hedef klasörü oluştur
+	// Benzersiz dosya adı
+	ext := filepath.Ext(file.Filename)
+	if ext == "" {
+		ext = ".png"
+	}
+	fileName := fmt.Sprintf("canvas_%d%s", time.Now().UnixNano(), ext)
+
+	// Dosyayı oku
+	src, err := file.Open()
+	if err != nil {
+		log.Printf("❌ Dosya açılamadı: %v", err)
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Dosya açılamadı"})
+		return
+	}
+	defer src.Close()
+
+	fileData, err := io.ReadAll(src)
+	if err != nil {
+		log.Printf("❌ Dosya okunamadı: %v", err)
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Dosya okunamadı"})
+		return
+	}
+
+	// Bunny CDN yapılandırılmışsa → CDN'e yükle
+	if utils.IsBunnyCDNConfigured() {
+		cdnURL, err := utils.UploadToBunnyCDN(fileData, "posts", fileName)
+		if err != nil {
+			log.Printf("⚠️ Bunny CDN upload başarısız, lokale kaydediliyor: %v", err)
+		} else {
+			log.Printf("✅ Canvas Bunny CDN'e kaydedildi: %s", cdnURL)
+			c.JSON(http.StatusOK, gin.H{
+				"message": "Görsel başarıyla yüklendi",
+				"url":     cdnURL,
+			})
+			return
+		}
+	}
+
+	// Fallback: lokale kaydet
 	uploadDir := "./assets/uploads/posts"
 	if err := os.MkdirAll(uploadDir, 0755); err != nil {
 		log.Printf("❌ Upload klasörü oluşturulamadı: %v", err)
@@ -40,16 +80,8 @@ func UploadCanvas(c *gin.Context) {
 		return
 	}
 
-	// Benzersiz dosya adı
-	ext := filepath.Ext(file.Filename)
-	if ext == "" {
-		ext = ".png"
-	}
-	fileName := fmt.Sprintf("canvas_%d%s", time.Now().UnixNano(), ext)
 	filePath := filepath.Join(uploadDir, fileName)
-
-	// Dosyayı kaydet
-	if err := c.SaveUploadedFile(file, filePath); err != nil {
+	if err := os.WriteFile(filePath, fileData, 0644); err != nil {
 		log.Printf("❌ Dosya kaydetme hatası: %v", err)
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Dosya kaydedilemedi"})
 		return

@@ -2,6 +2,7 @@ package handlers
 
 import (
 	"fmt"
+	"io"
 	"log"
 	"net/http"
 	"os"
@@ -348,18 +349,40 @@ func handleLogoUpload(c *gin.Context) (string, error) {
 		return "", fmt.Errorf("desteklenmeyen dosya formatı: %s", ext)
 	}
 
-	// Upload dizinini oluştur
+	// Benzersiz dosya adı (timestamp)
+	filename := fmt.Sprintf("%d%s", time.Now().UnixNano(), ext)
+
+	// Dosyayı oku
+	src, err := file.Open()
+	if err != nil {
+		return "", fmt.Errorf("dosya açılamadı: %v", err)
+	}
+	defer src.Close()
+
+	fileData, err := io.ReadAll(src)
+	if err != nil {
+		return "", fmt.Errorf("dosya okunamadı: %v", err)
+	}
+
+	// Bunny CDN yapılandırılmışsa → CDN'e yükle
+	if utils.IsBunnyCDNConfigured() {
+		cdnURL, err := utils.UploadToBunnyCDN(fileData, "logos", filename)
+		if err != nil {
+			log.Printf("⚠️ Bunny CDN logo upload başarısız, lokale kaydediliyor: %v", err)
+		} else {
+			log.Printf("✅ Logo Bunny CDN'e kaydedildi: %s", cdnURL)
+			return cdnURL, nil
+		}
+	}
+
+	// Fallback: lokale kaydet
 	uploadDir := "./assets/uploads/logos"
 	if err := os.MkdirAll(uploadDir, os.ModePerm); err != nil {
 		return "", fmt.Errorf("dizin oluşturulamadı: %v", err)
 	}
 
-	// Benzersiz dosya adı (timestamp)
-	filename := fmt.Sprintf("%d%s", time.Now().UnixNano(), ext)
 	savePath := filepath.Join(uploadDir, filename)
-
-	// Dosyayı kaydet
-	if err := c.SaveUploadedFile(file, savePath); err != nil {
+	if err := os.WriteFile(savePath, fileData, 0644); err != nil {
 		return "", fmt.Errorf("dosya kaydedilemedi: %v", err)
 	}
 

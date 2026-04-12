@@ -9,7 +9,9 @@ import (
 	"github.com/kullaniciadiniz/dio-panel-backend/database"
 	"github.com/kullaniciadiniz/dio-panel-backend/handlers"
 	"github.com/kullaniciadiniz/dio-panel-backend/middleware"
+	"github.com/kullaniciadiniz/dio-panel-backend/services"
 	"github.com/kullaniciadiniz/dio-panel-backend/utils"
+	"github.com/robfig/cron/v3"
 )
 
 func main() {
@@ -27,10 +29,18 @@ func main() {
 
 	// CORS ayarları — Frontend'in backend'e erişimi için
 	r.Use(cors.New(cors.Config{
-		// YENİ ADRESİMİZİ LİSTEYE EKLEDİK!
-		AllowOrigins:     []string{"http://localhost:3000", "http://localhost:3001", "http://187.77.109.127:8000"},
-		AllowMethods:     []string{"GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"},
-		AllowHeaders:     []string{"Origin", "Content-Type", "Authorization"},
+		// DOMAIN VE IP ADRESLERI BURADA!
+		AllowOrigins: []string{
+			"http://localhost:3000",
+			"http://localhost:3001",
+			"http://187.77.109.127:8000",
+			"http://app.dijitalisortagi.com",
+			"https://app.dijitalisortagi.com",
+			//  // <-- YENİ DOMAINIMIZ EKLENDI
+		},
+		AllowMethods: []string{"GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"},
+		// DİKKAT: Google Login vs. için gizli başlıklar eklendi (Accept, X-Requested-With, Cache-Control)
+		AllowHeaders: []string{"Origin", "Content-Type", "Authorization", "Accept", "X-Requested-With", "Cache-Control"},
 		AllowCredentials: true,
 	}))
 
@@ -128,6 +138,8 @@ func main() {
 		api.POST("/protected/product-image-studio/:id/analyze", handlers.AnalyzeProductImageStudio)
 		api.POST("/protected/product-image-studio/:id/generate", handlers.GenerateProductImageStudio)
 		api.POST("/protected/product-image-studio/:id/generate-ads", handlers.GenerateProductImageAdStudio)
+		api.POST("/protected/product-image-studio/:id/generate-new", handlers.GenerateNewProductImage)
+		api.POST("/protected/product-image-studio/create-image", handlers.GenerateCreationModeImage)
 		api.GET("/protected/product-image-studio/jobs/:jobID", handlers.GetProductImageStudioJob)
 		api.POST("/protected/product-image-studio/variants/:variantID/select", handlers.SelectProductImageVariant)
 		api.POST("/protected/product-image-studio/ad-variants/:variantID/select", handlers.SelectProductImageAdVariant)
@@ -151,8 +163,56 @@ func main() {
 			seo.GET("/dashboard/metrics", handlers.SeoDashboardMetrics)
 			seo.GET("/sites", handlers.SeoListSites)
 			seo.DELETE("/integration/disconnect", handlers.SeoDisconnect)
+
+			// ── Yeni SEO Dashboard rotaları ──
+			seo.GET("/projects", handlers.SeoListProjects)
+			seo.POST("/projects/:id/sync", handlers.SeoSyncProject)
+			seo.GET("/projects/:id/overview", handlers.SeoProjectOverview)
+
+			// ── Action Engine rotaları ──
+			seo.GET("/actions/run-engine", handlers.ActionRunEngine)
+			seo.GET("/actions/list", handlers.ActionList)
+			seo.PATCH("/actions/:id/status", handlers.ActionUpdateStatus)
+
+			// ── Rankings Engine rotaları ──
+			seo.GET("/rankings/sync", handlers.RankingsSync)
+			seo.GET("/rankings/list", handlers.RankingsList)
+			seo.GET("/rankings/summary", handlers.RankingsSummary)
+
+			// ── Keyword Intelligence ──
+			seo.GET("/keywords/dashboard", handlers.KeywordDashboard)
+
+			// ── Content Brief ──
+			seo.GET("/content/opportunities", handlers.ContentOpportunities)
+			seo.POST("/content/generate-brief", handlers.ContentGenerateBrief)
+			seo.GET("/content/briefs", handlers.ContentBriefsList)
+
+			// ── Technical SEO ──
+			seo.GET("/technical/dashboard", handlers.TechnicalDashboard)
+			seo.GET("/technical/sync", handlers.TechnicalSync)
+			seo.GET("/technical/issues/details", handlers.TechnicalIssueDetails)
+
+			// ── Backlink ──
+			seo.GET("/backlinks/dashboard", handlers.BacklinkDashboard)
+			seo.GET("/backlinks/sync", handlers.BacklinkSync)
+
+			// ── AI Visibility ──
+			seo.GET("/ai-visibility/dashboard", handlers.AIVisibilityDashboard)
+			seo.GET("/ai-visibility/sync", handlers.AIVisibilitySync)
 		}
 	}
+
+	// ═══════════════════════════════════════
+	// CRON JOBS
+	// ═══════════════════════════════════════
+	c := cron.New()
+	// Her gece 03:00'te Action Engine çalıştır
+	_, _ = c.AddFunc("0 3 * * *", func() {
+		log.Println("🕐 Cron: Action Engine başlıyor (03:00)")
+		services.RunActionEngineForAllProjects()
+	})
+	c.Start()
+	log.Println("⏰ Cron job ayarlandı: Action Engine her gece 03:00")
 
 	// Sunucuyu başlat
 	port := config.Get("PORT")
@@ -164,4 +224,4 @@ func main() {
 	if err := r.Run(":" + port); err != nil {
 		log.Fatalf("❌ Sunucu başlatılamadı: %v", err)
 	}
-}
+}

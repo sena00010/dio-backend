@@ -3,6 +3,7 @@ package handlers
 import (
 	"encoding/json"
 	"fmt"
+	"io"
 	"log"
 	"net/http"
 	"os"
@@ -292,22 +293,56 @@ func UploadProductImageStudioSource(c *gin.Context) {
 		return
 	}
 
-	uploadDir := "./assets/uploads/product-studio"
-	if err := os.MkdirAll(uploadDir, 0755); err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "upload klasoru olusturulamadi"})
-		return
-	}
-
 	ext := filepath.Ext(file.Filename)
 	if ext == "" {
 		ext = ".png"
 	}
 
 	fileName := fmt.Sprintf("product_%d%s", time.Now().UnixNano(), ext)
+
+	// Dosyayı oku
+	src, err := file.Open()
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "dosya acilamadi"})
+		return
+	}
+	defer src.Close()
+
+	fileData, err := io.ReadAll(src)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "dosya okunamadi"})
+		return
+	}
+
+	var sourceImageURL string
+
+	// Bunny CDN yapılandırılmışsa → CDN'e yükle
+	if utils.IsBunnyCDNConfigured() {
+		cdnURL, err := utils.UploadToBunnyCDN(fileData, "product-studio", fileName)
+		if err != nil {
+			log.Printf("⚠️ Bunny CDN upload basarisiz, lokale kaydediliyor: %v", err)
+		} else {
+			sourceImageURL = cdnURL
+			log.Printf("✅ Product studio kaynak gorsel Bunny CDN'e kaydedildi: %s", cdnURL)
+		}
+	}
+
+	// Fallback: lokale kaydet (ayrıca CDN'e yüklenmiş olsa bile AI analiz için lokal gerekli)
+	uploadDir := "./assets/uploads/product-studio"
+	if err := os.MkdirAll(uploadDir, 0755); err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "upload klasoru olusturulamadi"})
+		return
+	}
+
 	filePath := filepath.Join(uploadDir, fileName)
-	if err := c.SaveUploadedFile(file, filePath); err != nil {
+	if err := os.WriteFile(filePath, fileData, 0644); err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "dosya kaydedilemedi"})
 		return
+	}
+
+	// CDN URL ayarlanmadıysa lokal URL kullan
+	if sourceImageURL == "" {
+		sourceImageURL = "/uploads/product-studio/" + fileName
 	}
 
 	title := c.PostForm("title")
@@ -326,7 +361,7 @@ func UploadProductImageStudioSource(c *gin.Context) {
 	studio := models.ProductImageStudio{
 		CompanyID:      company.ID,
 		Title:          title,
-		SourceImageURL: "/uploads/product-studio/" + fileName,
+		SourceImageURL: sourceImageURL,
 		SourceFileName: file.Filename,
 		Category:       category,
 		SlotGroup:      slotGroup,
@@ -865,6 +900,214 @@ func runProductAdStudioGeneration(job *productStudioJob, company models.Company,
 			"selected_ad_variant_id": firstRecommended.ID,
 			"active_tab":             "reklam-studyosu",
 		})
+	}
+}
+
+// GenerateCreationModeImage — Kaynak görsel olmadan, canvas ayarlarının tamamını
+// prompt olarak Gemini'ye göndererek sıfırdan ürün görseli üretir.
+func GenerateCreationModeImage(c *gin.Context) {
+	userID, ok := currentUserID(c)
+	if !ok {
+		return
+	}
+
+	var req struct {
+		utils.CreationModeSettings
+		BrandID   *uint  `json:"brand_id"`
+		CompanyID *uint  `json:"company_id"`
+		Title     string `json:"title"`
+	}
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "gecersiz istek: " + err.Error()})
+		return
+	}
+
+	if req.ScenePrompt == "" {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Lütfen bir sahne açıklaması girin"})
+		return
+	}
+
+	// Marka bilgilerini yükle
+	var company *models.Company
+	brandID := req.BrandID
+	if brandID == nil {
+		brandID = req.CompanyID
+	}
+	if brandID != nil && *brandID > 0 {
+		var brandCompany models.Company
+		if err := database.DB.Where("id = ? AND user_id = ?", *brandID, userID).First(&brandCompany).Error; err == nil {
+			company = &brandCompany
+			log.Printf("🏷️ Creation mode marka: %s (ID: %d)", brandCompany.Name, brandCompany.ID)
+		}
+	}
+
+	log.Printf("🎨 Creation Mode — Prompt: %.80s..., Marka: %s, Oran: %s",
+		req.ScenePrompt, companyDisplayName(company), req.AspectRatio)
+
+	// Gemini text-to-image ile görsel üret
+	imageURL, err := utils.GenerateProductImageFromPrompt(req.CreationModeSettings, company)
+	if err != nil {
+		log.Printf("❌ Creation mode görsel üretimi başarısız: %v", err)
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Görsel üretilemedi: " + err.Error()})
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{
+		"message":  "Ürün görseli başarıyla üretildi",
+		"imageUrl": imageURL,
+	})
+}
+
+// GenerateNewProductImage — Gemini 2.5 Flash ile yeni ürün görseli üretir.
+// Kullanıcının yüklediği referans görselden markaya uygun yeni ürün görseli oluşturur.
+func GenerateNewProductImage(c *gin.Context) {
+	userID, ok := currentUserID(c)
+	if !ok {
+		return
+	}
+
+	studioID, err := strconv.ParseUint(c.Param("id"), 10, 64)
+	if err != nil || studioID == 0 {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "gecersiz studio id"})
+		return
+	}
+
+	var studio models.ProductImageStudio
+	if err := database.DB.Preload("Variants").First(&studio, studioID).Error; err != nil {
+		c.JSON(http.StatusNotFound, gin.H{"error": "studio bulunamadi"})
+		return
+	}
+
+	if _, ok := ownedCompany(c, userID, studio.CompanyID); !ok {
+		return
+	}
+
+	var req struct {
+		BrandID     *uint  `json:"brand_id"`
+		Category    string `json:"category"`
+		AspectRatio string `json:"aspect_ratio"`
+	}
+	_ = c.ShouldBindJSON(&req)
+
+	// Marka belirleme: brand_id gönderildiyse o markayı kullan, yoksa studio'nun şirketini kullan
+	var company *models.Company
+	if req.BrandID != nil && *req.BrandID > 0 {
+		var brandCompany models.Company
+		if err := database.DB.Where("id = ? AND user_id = ?", *req.BrandID, userID).First(&brandCompany).Error; err == nil {
+			company = &brandCompany
+			log.Printf("🏷️ Marka seçildi: %s (ID: %d)", brandCompany.Name, brandCompany.ID)
+		}
+	}
+	if company == nil {
+		var studioCompany models.Company
+		if err := database.DB.First(&studioCompany, studio.CompanyID).Error; err == nil {
+			company = &studioCompany
+		}
+	}
+
+	category := req.Category
+	if category == "" {
+		category = studio.Category
+	}
+
+	aspectRatio := req.AspectRatio
+	if aspectRatio == "" {
+		aspectRatio = "1:1"
+	}
+
+	// Gemini ile görsel üret
+	imageURL, err := utils.GenerateNewProductImageWithGemini(studio.SourceImageURL, company, category, aspectRatio)
+	if err != nil {
+		log.Printf("❌ Gemini yeni ürün görseli üretimi başarısız: %v", err)
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Görsel üretilemedi: " + err.Error()})
+		return
+	}
+
+	// Yeni varyant olarak kaydet
+	variant := models.ProductImageVariant{
+		StudioID:      studio.ID,
+		VariantKey:    fmt.Sprintf("gemini_new_%d", time.Now().UnixNano()),
+		Name:          fmt.Sprintf("Yeni Görsel — %s", companyDisplayName(company)),
+		Platform:      "Genel",
+		FormatLabel:   aspectRatio,
+		Width:         inferWidthFromRatio(aspectRatio),
+		Height:        inferHeightFromRatio(aspectRatio),
+		Background:    "AI Üretim",
+		Score:         88,
+		Status:        "ready",
+		PreviewURL:    imageURL,
+		Provider:      "gemini-2.5-flash-image",
+		BadgeLabel:    "Gemini AI",
+		BadgeTone:     "info",
+		DesignNotes:   fmt.Sprintf("Gemini 2.5 Flash ile %s markasına uygun üretildi.", companyDisplayName(company)),
+		IsRecommended: true,
+		SortOrder:     0,
+	}
+	database.DB.Create(&variant)
+
+	// Studio'yu güncelle
+	database.DB.Model(&studio).Updates(map[string]interface{}{
+		"status":              "ready",
+		"selected_variant_id": variant.ID,
+	})
+
+	// Güncel studio'yu yeniden yükle
+	database.DB.Preload("Variants").Preload("AdVariants").Preload("SelectedVariant").Preload("SelectedAdVariant").First(&studio, studio.ID)
+
+	c.JSON(http.StatusOK, gin.H{
+		"message":  "Yeni ürün görseli başarıyla üretildi",
+		"variant":  variant,
+		"studio":   buildStudioResponse(studio, studio.Variants),
+		"imageUrl": imageURL,
+	})
+}
+
+func companyDisplayName(c *models.Company) string {
+	if c == nil {
+		return "Genel"
+	}
+	return c.Name
+}
+
+func inferWidthFromRatio(ratio string) int {
+	switch ratio {
+	case "9:16":
+		return 1080
+	case "16:9":
+		return 1920
+	case "4:5":
+		return 1080
+	case "1:1":
+		return 1200
+	case "TY":
+		return 1200
+	case "HB":
+		return 1200
+	case "IG":
+		return 1080
+	default:
+		return 1200
+	}
+}
+
+func inferHeightFromRatio(ratio string) int {
+	switch ratio {
+	case "9:16":
+		return 1920
+	case "16:9":
+		return 1080
+	case "4:5":
+		return 1350
+	case "1:1":
+		return 1200
+	case "TY":
+		return 1800
+	case "HB":
+		return 1200
+	case "IG":
+		return 1350
+	default:
+		return 1200
 	}
 }
 

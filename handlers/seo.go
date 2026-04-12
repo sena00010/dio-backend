@@ -7,6 +7,7 @@ import (
 	"log"
 	"net/http"
 	"strconv"
+	"strings"
 	"time"
 
 	"github.com/gin-gonic/gin"
@@ -23,11 +24,36 @@ import (
 // Google OAuth2 Config
 // ──────────────────────────────────────────────
 
-func getGoogleOAuthConfig() *oauth2.Config {
+const productionHost = "app.dijitalisortagi.com"
+
+// isProduction, gelen isteğin production domain'inden gelip gelmediğini kontrol eder
+func isProduction(c *gin.Context) bool {
+	host := c.Request.Host
+	// Host header port içerebilir, sadece hostname'i kontrol et
+	if strings.Contains(host, ":") {
+		host = strings.Split(host, ":")[0]
+	}
+	return host == productionHost
+}
+
+// getBaseURLs, ortama göre backend ve frontend URL'lerini döner
+func getBaseURLs(c *gin.Context) (backendURL, frontendURL string) {
+	if isProduction(c) {
+		backendURL = "https://app.dijitalisortagi.com"
+		frontendURL = "https://app.dijitalisortagi.com"
+	} else {
+		backendURL = "http://localhost:8080"
+		frontendURL = "http://localhost:3000"
+	}
+	return
+}
+
+func getGoogleOAuthConfig(c *gin.Context) *oauth2.Config {
+	backendURL, _ := getBaseURLs(c)
 	return &oauth2.Config{
 		ClientID:     config.Get("GOOGLE_CLIENT_ID"),
 		ClientSecret: config.Get("GOOGLE_CLIENT_SECRET"),
-		RedirectURL:  "http://localhost:8080/api/seo/auth/google/callback",
+		RedirectURL:  backendURL + "/api/seo/auth/google/callback",
 		Scopes:       []string{"https://www.googleapis.com/auth/webmasters.readonly"},
 		Endpoint:     google.Endpoint,
 	}
@@ -51,7 +77,7 @@ func SeoGoogleLogin(c *gin.Context) {
 		return
 	}
 
-	cfg := getGoogleOAuthConfig()
+	cfg := getGoogleOAuthConfig(c)
 
 	// company_id'yi state parametresine göm (callback'te kullanmak için)
 	state := fmt.Sprintf("company_%s", companyID)
@@ -69,7 +95,7 @@ func SeoGoogleLogin(c *gin.Context) {
 // ──────────────────────────────────────────────
 
 func SeoGoogleCallback(c *gin.Context) {
-	frontendURL := "http://localhost:3000"
+	_, frontendURL := getBaseURLs(c)
 
 	code := c.Query("code")
 	state := c.Query("state")
@@ -99,7 +125,7 @@ func SeoGoogleCallback(c *gin.Context) {
 
 	log.Printf("🔄 OAuth callback başladı: company_id=%d, code_length=%d", companyID, len(code))
 
-	cfg := getGoogleOAuthConfig()
+	cfg := getGoogleOAuthConfig(c)
 
 	// Code → Token
 	token, err := cfg.Exchange(context.Background(), code)
@@ -184,8 +210,8 @@ func SeoGoogleCallback(c *gin.Context) {
 	}
 	log.Printf("✅ DB doğrulama başarılı: ID=%d, CompanyID=%d, AccessToken=%s...", check.ID, check.CompanyID, check.AccessToken[:min(10, len(check.AccessToken))])
 
-	// Başarılı — Frontend'e yönlendir
-	c.Redirect(http.StatusTemporaryRedirect, fmt.Sprintf("%s/?seo_connected=true&company_id=%d", frontendURL, companyID))
+	// Başarılı — Frontend'in SEO Dashboard sayfasına yönlendir
+	c.Redirect(http.StatusTemporaryRedirect, fmt.Sprintf("%s/?seo_connected=true&company_id=%d#seo", frontendURL, companyID))
 }
 
 // ──────────────────────────────────────────────
@@ -248,7 +274,7 @@ func SeoDashboardMetrics(c *gin.Context) {
 		TokenType:    "Bearer",
 	}
 
-	cfg := getGoogleOAuthConfig()
+	cfg := getGoogleOAuthConfig(c)
 	tokenSource := cfg.TokenSource(context.Background(), token)
 
 	// Token yenilendiyse DB'ye geri yaz
@@ -400,7 +426,7 @@ func SeoListSites(c *gin.Context) {
 		TokenType:    "Bearer",
 	}
 
-	cfg := getGoogleOAuthConfig()
+	cfg := getGoogleOAuthConfig(c)
 	client := cfg.Client(context.Background(), token)
 
 	svc, err := searchconsole.NewService(context.Background(), option.WithHTTPClient(client))

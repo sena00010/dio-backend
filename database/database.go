@@ -37,6 +37,19 @@ func Connect() {
 		&models.ProductImageStudio{},
 		&models.ProductImageVariant{},
 		&models.ProductImageAdVariant{},
+		&models.SeoProject{},
+		&models.SeoProjectSnapshot{},
+		&models.SeoPerformanceDaily{},
+		&models.SeoDiscoveryMetrics{},
+		&models.SeoActionTask{},
+		&models.SeoTrackedKeyword{},
+		&models.SeoKeywordDailyStat{},
+		&models.SeoContentBrief{},
+		&models.SeoTechnicalHealth{},
+		&models.SeoBacklinkSummary{},
+		&models.SeoBacklinkItem{},
+		&models.SeoAIVisibility{},
+		&models.SeoCompetitor{},
 	); err != nil {
 		log.Fatalf("❌ AutoMigrate hatası: %v", err)
 	}

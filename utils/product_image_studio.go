@@ -277,11 +277,29 @@ func inferProductTypeHint(referenceSummary string) string {
 	}
 }
 
-func DescribeProductImageReference(imageLocalURL, category string) string {
-	imagePath := "./assets" + imageLocalURL
-	imageBytes, err := os.ReadFile(imagePath)
-	if err != nil {
-		return fallbackReferenceDescription(category)
+func DescribeProductImageReference(imageURL, category string) string {
+	var imageBytes []byte
+	var err error
+
+	if strings.HasPrefix(imageURL, "http://") || strings.HasPrefix(imageURL, "https://") {
+		// CDN URL — indir
+		client := &http.Client{Timeout: 30 * time.Second}
+		resp, dlErr := client.Get(imageURL)
+		if dlErr != nil {
+			return fallbackReferenceDescription(category)
+		}
+		defer resp.Body.Close()
+		imageBytes, err = io.ReadAll(resp.Body)
+		if err != nil {
+			return fallbackReferenceDescription(category)
+		}
+	} else {
+		// Lokal dosya yolu
+		imagePath := "./assets" + imageURL
+		imageBytes, err = os.ReadFile(imagePath)
+		if err != nil {
+			return fallbackReferenceDescription(category)
+		}
 	}
 
 	imageBase64 := base64.StdEncoding.EncodeToString(imageBytes)
@@ -450,16 +468,35 @@ func describeReferenceWithOpenAI(apiKey, imageBase64, prompt string) (string, er
 	return strings.TrimSpace(openAIResp.Choices[0].Message.Content), nil
 }
 
-func GenerateProductImageEdit(imageLocalURL, prompt string, width, height int) (string, error) {
+func GenerateProductImageEdit(imageURL, prompt string, width, height int) (string, error) {
 	apiKey := strings.TrimSpace(os.Getenv("OPENAI_API_KEY"))
 	if apiKey == "" {
 		return "", fmt.Errorf("OPENAI_API_KEY bulunamadi")
 	}
 
-	imagePath := "./assets" + imageLocalURL
-	imageBytes, err := os.ReadFile(imagePath)
-	if err != nil {
-		return "", fmt.Errorf("kaynak gorsel okunamadi: %v", err)
+	var imageBytes []byte
+	var imagePath string
+	var err error
+
+	if strings.HasPrefix(imageURL, "http://") || strings.HasPrefix(imageURL, "https://") {
+		// CDN URL — indir
+		client := &http.Client{Timeout: 60 * time.Second}
+		resp, dlErr := client.Get(imageURL)
+		if dlErr != nil {
+			return "", fmt.Errorf("kaynak gorsel indirilemedi: %v", dlErr)
+		}
+		defer resp.Body.Close()
+		imageBytes, err = io.ReadAll(resp.Body)
+		if err != nil {
+			return "", fmt.Errorf("kaynak gorsel okunamadi: %v", err)
+		}
+		imagePath = "source_image.png"
+	} else {
+		imagePath = "./assets" + imageURL
+		imageBytes, err = os.ReadFile(imagePath)
+		if err != nil {
+			return "", fmt.Errorf("kaynak gorsel okunamadi: %v", err)
+		}
 	}
 
 	size := "1024x1024"
@@ -527,13 +564,8 @@ func GenerateProductImageEdit(imageLocalURL, prompt string, width, height int) (
 		return "", fmt.Errorf("openai image edit bos yanit")
 	}
 
-	// Dosyayi assets/uploads/product-studio/ altina kaydet
-	uploadDir := "./assets/uploads/product-studio"
-	if mkErr := os.MkdirAll(uploadDir, 0755); mkErr != nil {
-		return "", fmt.Errorf("product-studio klasoru olusturulamadi: %v", mkErr)
-	}
+	// Dosyayi Bunny CDN veya assets/uploads/product-studio/ altina kaydet
 	fileName := fmt.Sprintf("studio_%d.png", time.Now().UnixNano())
-	outPath := filepath.Join(uploadDir, fileName)
 
 	if editResp.Data[0].B64JSON != "" {
 		decoded, decErr := base64.StdEncoding.DecodeString(editResp.Data[0].B64JSON)
@@ -543,6 +575,24 @@ func GenerateProductImageEdit(imageLocalURL, prompt string, width, height int) (
 				return "", fmt.Errorf("base64 decode basarisiz: %v", decErr)
 			}
 		}
+
+		// Bunny CDN'e yukle
+		if IsBunnyCDNConfigured() {
+			cdnURL, err := UploadToBunnyCDN(decoded, "product-studio", fileName)
+			if err != nil {
+				log.Printf("⚠️ Bunny CDN upload basarisiz, lokale kaydediliyor: %v", err)
+			} else {
+				log.Printf("Product studio gorsel Bunny CDN'e kaydedildi: %s", cdnURL)
+				return cdnURL, nil
+			}
+		}
+
+		// Fallback: lokale kaydet
+		uploadDir := "./assets/uploads/product-studio"
+		if mkErr := os.MkdirAll(uploadDir, 0755); mkErr != nil {
+			return "", fmt.Errorf("product-studio klasoru olusturulamadi: %v", mkErr)
+		}
+		outPath := filepath.Join(uploadDir, fileName)
 		if wErr := os.WriteFile(outPath, decoded, 0644); wErr != nil {
 			return "", fmt.Errorf("dosya yazma hatasi: %v", wErr)
 		}
@@ -565,6 +615,22 @@ func GenerateProductImageEdit(imageLocalURL, prompt string, width, height int) (
 		if rdErr != nil {
 			return "", fmt.Errorf("gorsel okuma hatasi: %v", rdErr)
 		}
+
+		// Bunny CDN'e yukle
+		if IsBunnyCDNConfigured() {
+			cdnURL, err := UploadToBunnyCDN(dlBytes, "product-studio", fileName)
+			if err != nil {
+				log.Printf("⚠️ Bunny CDN upload basarisiz, lokale kaydediliyor: %v", err)
+			} else {
+				log.Printf("Product studio gorsel Bunny CDN'e kaydedildi: %s", cdnURL)
+				return cdnURL, nil
+			}
+		}
+
+		// Fallback: lokale kaydet
+		uploadDir := "./assets/uploads/product-studio"
+		os.MkdirAll(uploadDir, 0755)
+		outPath := filepath.Join(uploadDir, fileName)
 		if wErr := os.WriteFile(outPath, dlBytes, 0644); wErr != nil {
 			return "", fmt.Errorf("dosya yazma hatasi: %v", wErr)
 		}
@@ -579,14 +645,31 @@ func GenerateProductImageEdit(imageLocalURL, prompt string, width, height int) (
 // GenerateProductImageWithSource -- Kaynak urun gorselini AI'ya gonderip
 // yeni pazarlama/promosyon gorseli ureten fonksiyon.
 // Oncelik: OpenAI gpt-image-1 (ChatGPT tarzi) → Gemini (son care)
-func GenerateProductImageWithSource(imageLocalURL, prompt string) (string, error) {
-	imagePath := "./assets" + imageLocalURL
-	imageBytes, err := os.ReadFile(imagePath)
-	if err != nil {
-		return "", fmt.Errorf("kaynak gorsel okunamadi: %v", err)
-	}
+func GenerateProductImageWithSource(imageURL, prompt string) (string, error) {
+	var imageBytes []byte
+	var imagePath string
+	var err error
 
-	// 1) OpenAI gpt-image-1 — ChatGPT ile ayni motor, kaynak gorseli gonderir
+	if strings.HasPrefix(imageURL, "http://") || strings.HasPrefix(imageURL, "https://") {
+		// CDN URL — indir
+		client := &http.Client{Timeout: 60 * time.Second}
+		resp, dlErr := client.Get(imageURL)
+		if dlErr != nil {
+			return "", fmt.Errorf("kaynak gorsel indirilemedi: %v", dlErr)
+		}
+		defer resp.Body.Close()
+		imageBytes, err = io.ReadAll(resp.Body)
+		if err != nil {
+			return "", fmt.Errorf("kaynak gorsel okunamadi: %v", err)
+		}
+		imagePath = "source_image.png"
+	} else {
+		imagePath = "./assets" + imageURL
+		imageBytes, err = os.ReadFile(imagePath)
+		if err != nil {
+			return "", fmt.Errorf("kaynak gorsel okunamadi: %v", err)
+		}
+	}	// 1) OpenAI gpt-image-1 — ChatGPT ile ayni motor, kaynak gorseli gonderir
 	openaiKey := strings.TrimSpace(os.Getenv("OPENAI_API_KEY"))
 	if openaiKey != "" {
 		result, err := callOpenAIImageEditWithSource(openaiKey, imagePath, imageBytes, prompt)
@@ -691,12 +774,11 @@ func callOpenAIImageEditWithSource(apiKey, imagePath string, imageBytes []byte, 
 	return saveProductStudioResult(editResp.Data[0].B64JSON, editResp.Data[0].URL, "OpenAI gpt-image-1")
 }
 
-// saveProductStudioResult -- b64 veya URL'den gorseli diske kaydeder
+// saveProductStudioResult -- b64 veya URL'den gorseli Bunny CDN'e veya diske kaydeder
 func saveProductStudioResult(b64Data, imageURL, engine string) (string, error) {
-	uploadDir := "./assets/uploads/product-studio"
-	os.MkdirAll(uploadDir, 0755)
 	fileName := fmt.Sprintf("studio_%d.png", time.Now().UnixNano())
-	outPath := filepath.Join(uploadDir, fileName)
+
+	var imageData []byte
 
 	if b64Data != "" {
 		decoded, err := base64.StdEncoding.DecodeString(b64Data)
@@ -706,9 +788,7 @@ func saveProductStudioResult(b64Data, imageURL, engine string) (string, error) {
 				return "", fmt.Errorf("base64 decode basarisiz: %v", err)
 			}
 		}
-		if wErr := os.WriteFile(outPath, decoded, 0644); wErr != nil {
-			return "", fmt.Errorf("dosya yazma hatasi: %v", wErr)
-		}
+		imageData = decoded
 	} else if imageURL != "" {
 		dlClient := &http.Client{Timeout: 60 * time.Second}
 		dlResp, err := dlClient.Get(imageURL)
@@ -717,11 +797,28 @@ func saveProductStudioResult(b64Data, imageURL, engine string) (string, error) {
 		}
 		defer dlResp.Body.Close()
 		dlBytes, _ := io.ReadAll(dlResp.Body)
-		if wErr := os.WriteFile(outPath, dlBytes, 0644); wErr != nil {
-			return "", fmt.Errorf("dosya yazma hatasi: %v", wErr)
-		}
+		imageData = dlBytes
 	} else {
 		return "", fmt.Errorf("gorsel verisi yok")
+	}
+
+	// Bunny CDN'e yukle
+	if IsBunnyCDNConfigured() {
+		cdnURL, err := UploadToBunnyCDN(imageData, "product-studio", fileName)
+		if err != nil {
+			log.Printf("⚠️ Bunny CDN upload basarisiz, lokale kaydediliyor: %v", err)
+		} else {
+			log.Printf("✅ Gorsel uretildi (kaynak gorsel + prompt, motor: %s): %s", engine, cdnURL)
+			return cdnURL, nil
+		}
+	}
+
+	// Fallback: lokale kaydet
+	uploadDir := "./assets/uploads/product-studio"
+	os.MkdirAll(uploadDir, 0755)
+	outPath := filepath.Join(uploadDir, fileName)
+	if wErr := os.WriteFile(outPath, imageData, 0644); wErr != nil {
+		return "", fmt.Errorf("dosya yazma hatasi: %v", wErr)
 	}
 
 	publicURL := "/uploads/product-studio/" + fileName

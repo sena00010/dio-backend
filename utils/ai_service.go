@@ -1554,16 +1554,28 @@ func base64DecodeImage(encoded string) ([]byte, error) {
 	return decoded, nil
 }
 
-// saveImageBytes — byte dizisindeki görseli diske kaydet, public URL döndür
+// saveImageBytes — byte dizisindeki görseli Bunny CDN'e veya diske kaydet, public URL döndür
 func saveImageBytes(imageBytes []byte) (string, error) {
+	fileName := fmt.Sprintf("ai_%d.png", time.Now().UnixNano())
+
+	// Bunny CDN yapılandırılmışsa → CDN'e yükle
+	if IsBunnyCDNConfigured() {
+		cdnURL, err := UploadToBunnyCDN(imageBytes, "posts", fileName)
+		if err != nil {
+			log.Printf("⚠️ Bunny CDN upload başarısız, lokale kaydediliyor: %v", err)
+		} else {
+			log.Printf("✅ Görsel Bunny CDN'e kaydedildi: %s", cdnURL)
+			return cdnURL, nil
+		}
+	}
+
+	// Fallback: lokale kaydet
 	uploadDir := "./assets/uploads/posts"
 	if err := os.MkdirAll(uploadDir, 0755); err != nil {
 		return "", fmt.Errorf("klasör oluşturma hatası: %v", err)
 	}
 
-	fileName := fmt.Sprintf("ai_%d.png", time.Now().UnixNano())
 	filePath := uploadDir + "/" + fileName
-
 	if err := os.WriteFile(filePath, imageBytes, 0644); err != nil {
 		return "", fmt.Errorf("dosya yazma hatası: %v", err)
 	}
@@ -1592,11 +1604,26 @@ type LogoPositionResult struct {
 // logo için en uygun konumu belirler. Sabit köşe yerine, görselin içeriğine göre
 // dinamik pozisyon döndürür.
 func AnalyzeImageForLogoPosition(imageLocalPath string, brandName string) (*LogoPositionResult, error) {
-	// Görseli base64'e çevir
-	imagePath := "." + imageLocalPath // "./assets/uploads/posts/ai_xxx.png"
-	imageBytes, err := os.ReadFile(imagePath)
-	if err != nil {
-		return nil, fmt.Errorf("görsel okunamadı: %v", err)
+	var imageBytes []byte
+	var err error
+
+	if strings.HasPrefix(imageLocalPath, "http://") || strings.HasPrefix(imageLocalPath, "https://") {
+		client := &http.Client{Timeout: 30 * time.Second}
+		resp, dlErr := client.Get(imageLocalPath)
+		if dlErr != nil {
+			return nil, fmt.Errorf("görsel indirilemedi: %v", dlErr)
+		}
+		defer resp.Body.Close()
+		imageBytes, err = io.ReadAll(resp.Body)
+		if err != nil {
+			return nil, fmt.Errorf("görsel okunamadı: %v", err)
+		}
+	} else {
+		imagePath := "." + imageLocalPath
+		imageBytes, err = os.ReadFile(imagePath)
+		if err != nil {
+			return nil, fmt.Errorf("görsel okunamadı: %v", err)
+		}
 	}
 
 	imageBase64 := base64.StdEncoding.EncodeToString(imageBytes)
@@ -1818,11 +1845,26 @@ func analyzeLogoWithOpenAI(apiKey, imageBase64, prompt string) (*LogoPositionRes
 // metin katmanları (headline, description, CTA) için en uygun konumları belirler.
 // Bu sayede metinler görseldeki ana konunun üzerine binmez.
 func AnalyzeImageForTextPlacement(imageLocalPath string, ctx BrandContext) ([]DesignLayer, error) {
-	// Görseli base64'e çevir
-	imagePath := "." + imageLocalPath // "./assets/uploads/posts/ai_xxx.png"
-	imageBytes, err := os.ReadFile(imagePath)
-	if err != nil {
-		return nil, fmt.Errorf("görsel okunamadı: %v", err)
+	var imageBytes []byte
+	var err error
+
+	if strings.HasPrefix(imageLocalPath, "http://") || strings.HasPrefix(imageLocalPath, "https://") {
+		client := &http.Client{Timeout: 30 * time.Second}
+		resp, dlErr := client.Get(imageLocalPath)
+		if dlErr != nil {
+			return nil, fmt.Errorf("görsel indirilemedi: %v", dlErr)
+		}
+		defer resp.Body.Close()
+		imageBytes, err = io.ReadAll(resp.Body)
+		if err != nil {
+			return nil, fmt.Errorf("görsel okunamadı: %v", err)
+		}
+	} else {
+		imagePath := "." + imageLocalPath
+		imageBytes, err = os.ReadFile(imagePath)
+		if err != nil {
+			return nil, fmt.Errorf("görsel okunamadı: %v", err)
+		}
 	}
 
 	imageBase64 := base64.StdEncoding.EncodeToString(imageBytes)
@@ -2545,6 +2587,19 @@ func DownloadExternalLogo(logoURL string) (string, error) {
 	}
 
 	filename := fmt.Sprintf("%d_scraped%s", time.Now().UnixNano(), ext)
+
+	// Bunny CDN yapılandırılmışsa → CDN'e yükle
+	if IsBunnyCDNConfigured() {
+		cdnURL, err := UploadToBunnyCDN(logoBytes, "logos", filename)
+		if err != nil {
+			log.Printf("⚠️ Bunny CDN logo upload başarısız, lokale kaydediliyor: %v", err)
+		} else {
+			log.Printf("✅ Logo Bunny CDN'e kaydedildi: %s (%d KB)", cdnURL, len(logoBytes)/1024)
+			return cdnURL, nil
+		}
+	}
+
+	// Fallback: lokale kaydet
 	savePath := uploadDir + "/" + filename
 
 	if err := os.WriteFile(savePath, logoBytes, 0644); err != nil {
