@@ -619,6 +619,8 @@ func (g *GSCService) upsertSnapshot(period, start, end string, d SnapshotData) {
 
 	snap.ProjectID = g.project.ID
 	snap.PeriodLabel = period
+	snapDateStr := time.Now().Format("2006-01-02")
+	snap.SnapshotDate = &snapDateStr
 	snap.StartDate = start
 	snap.EndDate = end
 	snap.TotalClicks = d.TotalClicks
@@ -675,9 +677,17 @@ func (g *GSCService) upsertDiscoveryMetrics(period string, d DiscoveryData) {
 	dm.FallingQueries = toJSONSlice(d.FallingQueries)
 
 	if result.Error != nil {
-		database.DB.Create(&dm)
+		if err := database.DB.Create(&dm).Error; err != nil {
+			log.Printf("❌ DiscoveryMetrics CREATE hatası: project_id=%d, period=%s, err=%v", g.project.ID, period, err)
+		} else {
+			log.Printf("✅ DiscoveryMetrics oluşturuldu: project_id=%d, period=%s", g.project.ID, period)
+		}
 	} else {
-		database.DB.Save(&dm)
+		if err := database.DB.Save(&dm).Error; err != nil {
+			log.Printf("❌ DiscoveryMetrics SAVE hatası: project_id=%d, period=%s, err=%v", g.project.ID, period, err)
+		} else {
+			log.Printf("✅ DiscoveryMetrics güncellendi: project_id=%d, period=%s", g.project.ID, period)
+		}
 	}
 }
 

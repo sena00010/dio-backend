@@ -70,6 +70,13 @@ func main() {
 	// Google OAuth2 callback — public (Google tarayıcıyı yönlendirir, JWT yok)
 	r.GET("/api/seo/auth/google/callback", handlers.SeoGoogleCallback)
 
+	// Meta OAuth2 callback — public (Facebook tarayıcıyı yönlendirir, JWT yok)
+	r.GET("/api/meta/auth/callback", handlers.MetaOAuthCallback)
+	r.GET("/auth/facebook/callback", handlers.MetaOAuthCallback)
+
+	// Google Ads OAuth2 callback — public (Google tarayıcıyı yönlendirir, JWT yok)
+	r.GET("/api/google/auth/callback", handlers.GoogleAdsCallback)
+
 	// AI Image proxy — public (img tag Authorization header gönderemez)
 	r.GET("/api/ai-image", handlers.ProxyAIImage)
 
@@ -90,6 +97,8 @@ func main() {
 		api.POST("/protected/companies", handlers.CreateCompany)
 		api.PUT("/protected/companies/:id", handlers.UpdateCompany)
 		api.POST("/protected/companies/generate-description", handlers.GenerateBrandDesc)
+		api.GET("/protected/companies/stats", handlers.GetCompanyStats)
+		api.GET("/protected/companies/:id/detail", handlers.GetCompanyDetail)
 
 		// AI İçerik Fikirleri
 		api.POST("/protected/generate-ideas", handlers.GenerateIdeas)
@@ -199,6 +208,36 @@ func main() {
 			// ── AI Visibility ──
 			seo.GET("/ai-visibility/dashboard", handlers.AIVisibilityDashboard)
 			seo.GET("/ai-visibility/sync", handlers.AIVisibilitySync)
+
+			// ── Dashboard SEO Summary (seo_metrics_cache) ──
+			seo.GET("/dashboard/summary", handlers.SeoDashboardSummary)
+			seo.POST("/dashboard/sync-cache", handlers.SeoDashboardSyncCache)
+		}
+
+		// ──────────────────────────────────────────
+		// Meta Ads rotaları (JWT gerekli)
+		// ──────────────────────────────────────────
+		meta := api.Group("/meta")
+		{
+			meta.GET("/auth/login", handlers.MetaOAuthLogin)
+			meta.GET("/status", handlers.MetaIntegrationStatus)
+			meta.GET("/insights", handlers.MetaAccountInsightsHandler)
+			meta.GET("/campaigns", handlers.MetaCampaignsHandler)
+			meta.GET("/dashboard", handlers.MetaDashboardHandler)
+			meta.DELETE("/disconnect", handlers.MetaDisconnect)
+		}
+
+		// ──────────────────────────────────────────
+		// Google Ads rotaları (JWT gerekli)
+		// ──────────────────────────────────────────
+		gads := api.Group("/google-ads")
+		{
+			gads.GET("/auth/login", handlers.GoogleAdsLogin)
+			gads.GET("/status", handlers.GoogleAdsIntegrationStatus)
+			gads.GET("/accounts", handlers.GoogleAdsListAccounts)
+			gads.POST("/select-account", handlers.GoogleAdsSelectAccount)
+			gads.GET("/dashboard", handlers.GoogleAdsDashboardHandler)
+			gads.DELETE("/disconnect", handlers.GoogleAdsDisconnect)
 		}
 	}
 
@@ -211,8 +250,13 @@ func main() {
 		log.Println("🕐 Cron: Action Engine başlıyor (03:00)")
 		services.RunActionEngineForAllProjects()
 	})
+	// Her gece 03:30'da GSC Metrics Cache güncelle
+	_, _ = c.AddFunc("30 3 * * *", func() {
+		log.Println("🕐 Cron: GSC Metrics Cache sync başlıyor (03:30)")
+		services.SyncAllCompaniesGSCMetrics()
+	})
 	c.Start()
-	log.Println("⏰ Cron job ayarlandı: Action Engine her gece 03:00")
+	log.Println("⏰ Cron job'lar ayarlandı: Action Engine 03:00, GSC Metrics Cache 03:30")
 
 	// Sunucuyu başlat
 	port := config.Get("PORT")

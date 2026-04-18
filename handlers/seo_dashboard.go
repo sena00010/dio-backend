@@ -4,6 +4,7 @@ import (
 	"log"
 	"net/http"
 	"strconv"
+	"time"
 
 	"github.com/gin-gonic/gin"
 	"github.com/kullaniciadiniz/dio-panel-backend/database"
@@ -131,9 +132,11 @@ func SeoSyncProject(c *gin.Context) {
 				avgPos = tPos / cnt
 			}
 
+			snapDate := time.Now().Format("2006-01-02")
 			forceSnap := models.SeoProjectSnapshot{
 				ProjectID:        uint(projectID),
 				PeriodLabel:      period,
+				SnapshotDate:     &snapDate,
 				StartDate:        dailyRows[0].Date,
 				EndDate:          dailyRows[len(dailyRows)-1].Date,
 				TotalClicks:      tc,
@@ -237,9 +240,11 @@ func SeoProjectOverview(c *gin.Context) {
 		}
 
 		// Snapshot'ı DB'ye de yaz ki bir sonraki yüklemede direk okunabilsin
+		snapDate2 := time.Now().Format("2006-01-02")
 		forceSnap := models.SeoProjectSnapshot{
 			ProjectID:        uint(projectID),
 			PeriodLabel:      period,
+			SnapshotDate:     &snapDate2,
 			StartDate:        dailyRows[0].Date,
 			EndDate:          dailyRows[len(dailyRows)-1].Date,
 			TotalClicks:      tc,

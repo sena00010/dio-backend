@@ -50,14 +50,28 @@ func Connect() {
 		&models.SeoBacklinkItem{},
 		&models.SeoAIVisibility{},
 		&models.SeoCompetitor{},
+		&models.SeoMetricsCache{},
+		&models.UserMetaAccount{},
 	); err != nil {
 		log.Fatalf("❌ AutoMigrate hatası: %v", err)
 	}
 
 	log.Println("✅ Tablo migration'ları tamamlandı")
 
-	// Çoklu marka desteği: user_id unique index'ini kaldır (Ajans modeli)
+	// Migrator instance (index yönetimi için)
 	migrator := DB.Migrator()
+
+	// seo_metrics_caches tablosuna unique composite index ekle (site_url dahil)
+	if migrator.HasIndex(&models.SeoMetricsCache{}, "idx_seo_metrics_cache_unique") {
+		// Eski index'i kaldır (site_url içermiyordu)
+		DB.Exec("DROP INDEX idx_seo_metrics_cache_unique ON seo_metrics_caches")
+	}
+	if !migrator.HasIndex(&models.SeoMetricsCache{}, "idx_seo_metrics_cache_unique_v2") {
+		DB.Exec("CREATE UNIQUE INDEX idx_seo_metrics_cache_unique_v2 ON seo_metrics_caches(company_id, site_url(255), page_url(255), metric_type, record_date)")
+		log.Println("✅ seo_metrics_caches unique index v2 oluşturuldu (site_url dahil)")
+	}
+
+	// Çoklu marka desteği: user_id unique index'ini kaldır (Ajans modeli)
 	if migrator.HasIndex(&models.Company{}, "uni_companies_user_id") {
 		if err := migrator.DropIndex(&models.Company{}, "uni_companies_user_id"); err != nil {
 			log.Printf("⚠️ uni_companies_user_id drop hatası (muhtemelen zaten yok): %v", err)

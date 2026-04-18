@@ -9,6 +9,7 @@ type SeoProjectSnapshot struct {
 	PeriodLabel      string    `gorm:"size:20;not null" json:"period_label"`       // "7d","28d","90d","12m"
 	StartDate        string    `gorm:"size:10;not null" json:"start_date"`         // "2026-03-14"
 	EndDate          string    `gorm:"size:10;not null" json:"end_date"`           // "2026-04-10"
+	SnapshotDate     *string   `gorm:"size:10" json:"snapshot_date"`               // "2026-04-16" — tarama yapıldığı tarih (nullable)
 	TotalClicks      float64   `json:"total_clicks"`
 	TotalImpressions float64   `json:"total_impressions"`
 	AvgCTR           float64   `json:"avg_ctr"`
