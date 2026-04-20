@@ -91,12 +91,13 @@ type graphError struct {
 // Public API Fonksiyonları
 // ══════════════════════════════════════════════════
 
-// FetchMetaAccountInsights — Son 30 günlük hesap seviyesi reklam performans verileri
-func FetchMetaAccountInsights(accessToken, adAccountID string) (*MetaAccountInsights, error) {
-	// Tarih aralığı: son 30 gün
-	now := time.Now()
-	since := now.AddDate(0, 0, -30).Format("2006-01-02")
-	until := now.Format("2006-01-02")
+// FetchMetaAccountInsights — Hesabın istenen tarih aralığındaki verisi
+func FetchMetaAccountInsights(accessToken, adAccountID, since, until string) (*MetaAccountInsights, error) {
+	if since == "" || until == "" {
+		now := time.Now()
+		since = now.AddDate(0, 0, -30).Format("2006-01-02")
+		until = now.Format("2006-01-02")
+	}
 
 	// ad_account_id "act_" prefix kontrolü
 	if !strings.HasPrefix(adAccountID, "act_") {
@@ -179,16 +180,17 @@ func FetchMetaAccountInsights(accessToken, adAccountID string) (*MetaAccountInsi
 	return insights, nil
 }
 
-// FetchMetaCampaigns — Son kampanyalar listesi + kampanya bazlı son 30 gün insights
-func FetchMetaCampaigns(accessToken, adAccountID string, limit int) ([]MetaCampaignItem, error) {
+// FetchMetaCampaigns — Kampanyaları limitle ve tarih aralığıyla getir
+func FetchMetaCampaigns(accessToken, adAccountID string, limit int, since, until string) ([]MetaCampaignItem, error) {
 	if limit <= 0 {
 		limit = 10
 	}
 
-	// Tarih aralığı: son 30 gün
-	now := time.Now()
-	since := now.AddDate(0, 0, -30).Format("2006-01-02")
-	until := now.Format("2006-01-02")
+	if since == "" || until == "" {
+		now := time.Now()
+		since = now.AddDate(0, 0, -30).Format("2006-01-02")
+		until = now.Format("2006-01-02")
+	}
 
 	if !strings.HasPrefix(adAccountID, "act_") {
 		adAccountID = "act_" + adAccountID

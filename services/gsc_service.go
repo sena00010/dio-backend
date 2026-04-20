@@ -288,8 +288,8 @@ func (g *GSCService) fetchQueryData(start, end string) (float64, float64, float6
 			nonBrandImpressions += row.Impressions
 		}
 
-		// İlk 500 sorguyu topla (UI tablo için)
-		if i < 500 {
+		// İlk 100 sorguyu topla (UI tablo için)
+		if i < 100 {
 			qType := "Non-Brand"
 			if isBrand {
 				qType = "Brand"
@@ -358,7 +358,9 @@ func (g *GSCService) fetchPageData(start, end string) ([]map[string]interface{},
 			"pos":         math.Round(row.Position*10) / 10,
 		}
 
-		topPages = append(topPages, entry)
+		if len(topPages) < 100 {
+			topPages = append(topPages, entry)
+		}
 
 		// CTR Fırsatı: Gösterim > 5000 ve CTR < 2%
 		if row.Impressions > 5000 && row.Ctr < 0.02 {

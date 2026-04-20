@@ -24,9 +24,13 @@ const metaGraphAPIBase = "https://graph.facebook.com/v19.0"
 
 // getMetaOAuthURL — Facebook Login URL'sini oluşturur
 // getMetaRedirectURI — ortama göre (production vs local) Facebook redirect URI döner
+// Facebook Developer Portal'da kayıtlı redirect URI frontend domain'ine aittir:
+//   - http://localhost:3000/auth/facebook/callback
+//   - https://app.dijitalisortagi.com/auth/facebook/callback
+// Frontend Next.js route ile callback'i backend'e proxy eder.
 func getMetaRedirectURI(c *gin.Context) string {
-	backendURL, _ := getBaseURLs(c)
-	return backendURL + "/auth/facebook/callback"
+	_, frontendURL := getBaseURLs(c)
+	return frontendURL + "/auth/facebook/callback"
 }
 
 func getMetaOAuthURL(c *gin.Context, state string) string {
@@ -36,10 +40,9 @@ func getMetaOAuthURL(c *gin.Context, state string) string {
 	params.Set("client_id", config.Get("FACEBOOK_CLIENT_ID"))
 	params.Set("redirect_uri", redirectURI)
 	params.Set("state", state)
-	params.Set("scope", "public_profile,email,ads_read")
 	params.Set("response_type", "code")
-	// Kullanıcı her seferinde izin dialogunu görsün (re-authentication)
-	params.Set("auth_type", "rerequest")
+	// Facebook Login for Business — config_id ile izinler (ads_read dahil) configuration'da tanımlı
+	params.Set("config_id", config.Get("FACEBOOK_CONFIG_ID"))
 
 	return "https://www.facebook.com/v19.0/dialog/oauth?" + params.Encode()
 }

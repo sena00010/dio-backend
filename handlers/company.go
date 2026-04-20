@@ -123,7 +123,7 @@ func GetMyCompany(c *gin.Context) {
 	userID := userIDVal.(uint)
 
 	var companies []models.Company
-	if err := database.DB.Where("user_id = ?", userID).Order("id ASC").Find(&companies).Error; err != nil {
+	if err := database.DB.Preload("Competitors").Where("user_id = ?", userID).Order("id ASC").Find(&companies).Error; err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Markalar yüklenemedi"})
 		return
 	}

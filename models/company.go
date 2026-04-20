@@ -25,7 +25,8 @@ type Company struct {
 	SocialMedia       string    `gorm:"type:text" json:"social_media,omitempty"`
 	CompetitiveEdge   string    `gorm:"type:text" json:"competitive_edge,omitempty"`
 	CurrentStep       int       `gorm:"default:0" json:"current_step"`
-	Posts             []Post    `gorm:"foreignKey:CompanyID" json:"posts,omitempty"`
-	CreatedAt         time.Time `json:"created_at"`
-	UpdatedAt         time.Time `json:"updated_at"`
+	Posts             []Post               `gorm:"foreignKey:CompanyID" json:"posts,omitempty"`
+	Competitors       []CompanyCompetitor  `gorm:"foreignKey:CompanyID" json:"competitors,omitempty"`
+	CreatedAt         time.Time            `json:"created_at"`
+	UpdatedAt         time.Time            `json:"updated_at"`
 }

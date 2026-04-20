@@ -77,6 +77,9 @@ func main() {
 	// Google Ads OAuth2 callback — public (Google tarayıcıyı yönlendirir, JWT yok)
 	r.GET("/api/google/auth/callback", handlers.GoogleAdsCallback)
 
+	// LinkedIn OAuth2 callback — public (LinkedIn tarayıcıyı yönlendirir, JWT yok)
+	r.GET("/api/auth/callback/linkedin", handlers.LinkedInOAuthCallback)
+
 	// AI Image proxy — public (img tag Authorization header gönderemez)
 	r.GET("/api/ai-image", handlers.ProxyAIImage)
 
@@ -99,6 +102,10 @@ func main() {
 		api.POST("/protected/companies/generate-description", handlers.GenerateBrandDesc)
 		api.GET("/protected/companies/stats", handlers.GetCompanyStats)
 		api.GET("/protected/companies/:id/detail", handlers.GetCompanyDetail)
+		api.GET("/protected/companies/:id/competitors", handlers.ListCompetitors)
+		api.POST("/protected/companies/:id/competitors", handlers.AddCompetitors)
+		api.DELETE("/protected/companies/:id/competitors/:competitorId", handlers.DeleteCompetitor)
+		api.POST("/protected/suggest-competitors", handlers.SuggestCompetitors)
 
 		// AI İçerik Fikirleri
 		api.POST("/protected/generate-ideas", handlers.GenerateIdeas)
@@ -224,6 +231,8 @@ func main() {
 			meta.GET("/insights", handlers.MetaAccountInsightsHandler)
 			meta.GET("/campaigns", handlers.MetaCampaignsHandler)
 			meta.GET("/dashboard", handlers.MetaDashboardHandler)
+			meta.GET("/ad-accounts", handlers.MetaListAdAccountsHandler)
+			meta.PUT("/select-account", handlers.MetaSelectAdAccountHandler)
 			meta.DELETE("/disconnect", handlers.MetaDisconnect)
 		}
 
@@ -239,6 +248,36 @@ func main() {
 			gads.GET("/dashboard", handlers.GoogleAdsDashboardHandler)
 			gads.DELETE("/disconnect", handlers.GoogleAdsDisconnect)
 		}
+
+		// ──────────────────────────────────────────
+		// TikTok Ads rotaları (JWT gerekli)
+		// ──────────────────────────────────────────
+		tiktok := api.Group("/tiktok")
+		{
+			tiktok.GET("/status", handlers.TikTokIntegrationStatus)
+			tiktok.GET("/dashboard", handlers.TikTokDashboardHandler)
+			tiktok.DELETE("/disconnect", handlers.TikTokDisconnect)
+		}
+
+		// ──────────────────────────────────────────
+		// LinkedIn Ads rotaları (JWT gerekli)
+		// ──────────────────────────────────────────
+		linkedin := api.Group("/linkedin")
+		{
+			linkedin.GET("/auth/login", handlers.LinkedInOAuthLogin)
+			linkedin.GET("/status", handlers.LinkedInIntegrationStatus)
+			linkedin.GET("/dashboard", handlers.LinkedInDashboardHandler)
+			linkedin.GET("/social", handlers.LinkedInSocialDataHandler)
+			linkedin.GET("/ad-accounts", handlers.LinkedInListAdAccountsHandler)
+			linkedin.PUT("/select-account", handlers.LinkedInSelectAdAccountHandler)
+			linkedin.GET("/debug", handlers.LinkedInDebugHandler)
+			linkedin.DELETE("/disconnect", handlers.LinkedInDisconnect)
+		}
+
+		// ──────────────────────────────────────────
+		// Birleşik Dashboard Stats (Omnichannel)
+		// ──────────────────────────────────────────
+		api.GET("/dashboard/stats", handlers.DashboardStatsHandler)
 	}
 
 	// ═══════════════════════════════════════

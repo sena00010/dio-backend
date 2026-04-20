@@ -29,6 +29,7 @@ func Connect() {
 	if err := DB.AutoMigrate(
 		&models.User{},
 		&models.Company{},
+		&models.CompanyCompetitor{},
 		&models.AiSchedule{},
 		&models.Post{},
 		&models.AiIdea{},
@@ -52,6 +53,9 @@ func Connect() {
 		&models.SeoCompetitor{},
 		&models.SeoMetricsCache{},
 		&models.UserMetaAccount{},
+		&models.UserGoogleAdsAccount{},
+		&models.UserTikTokAccount{},
+		&models.UserLinkedInAccount{},
 	); err != nil {
 		log.Fatalf("❌ AutoMigrate hatası: %v", err)
 	}
