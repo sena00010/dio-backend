@@ -179,7 +179,20 @@ func DashboardStatsHandler(c *gin.Context) {
 				return
 			}
 
-			insights, err := services.FetchTikTokAccountInsights(ttAccount.AccessToken, *ttAccount.AdvertiserID)
+			var advId string
+			if ttAccount.AdvertiserID != nil && *ttAccount.AdvertiserID != "" {
+				advId = *ttAccount.AdvertiserID
+			}
+
+			if advId == "" {
+				log.Printf("[DASHBOARD] TikTok Advertiser ID eksik (user=%v)", userID)
+				mu.Lock()
+				results = append(results, stat)
+				mu.Unlock()
+				return
+			}
+
+			insights, err := services.FetchTikTokAccountInsights(ttAccount.AccessToken, advId)
 			if err != nil {
 				log.Printf("[DASHBOARD] TikTok insights hatası (user=%v): %v", userID, err)
 				mu.Lock()

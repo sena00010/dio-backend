@@ -80,6 +80,9 @@ func main() {
 	// LinkedIn OAuth2 callback — public (LinkedIn tarayıcıyı yönlendirir, JWT yok)
 	r.GET("/api/auth/callback/linkedin", handlers.LinkedInOAuthCallback)
 
+	// TikTok OAuth2 callback — public
+	r.GET("/api/auth/tiktok/callback", handlers.TikTokOAuthCallback)
+
 	// AI Image proxy — public (img tag Authorization header gönderemez)
 	r.GET("/api/ai-image", handlers.ProxyAIImage)
 
@@ -254,8 +257,10 @@ func main() {
 		// ──────────────────────────────────────────
 		tiktok := api.Group("/tiktok")
 		{
+			tiktok.GET("/auth/login", handlers.TikTokOAuthLogin)
 			tiktok.GET("/status", handlers.TikTokIntegrationStatus)
 			tiktok.GET("/dashboard", handlers.TikTokDashboardHandler)
+			tiktok.GET("/debug", handlers.TikTokDebugHandler)
 			tiktok.DELETE("/disconnect", handlers.TikTokDisconnect)
 		}
 
