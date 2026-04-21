@@ -348,7 +348,7 @@ func callOpenAIForCreatives(prompt string) ([]CreativeVariant, error) {
 	}
 
 	reqBody := openAIRequest{
-		Model:       "gpt-4o-mini",
+		Model:       GetAiModel("gpt_fast_general", "gpt-4o-mini"),
 		Temperature: 0.9,
 		MaxTokens:   8000,
 		Messages: []openAIMessage{

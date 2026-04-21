@@ -230,7 +230,7 @@ Rules:
 - output only valid JSON with keys headline, sub_headline, cta`, company.Name, company.Sector, studio.Category, company.TargetAudience, company.ToneOfVoice, preset.FormatLabel, preset.Platform, studio.SourceAnalysis)
 
 	reqBody := openAIRequest{
-		Model:       "gpt-4o-mini",
+		Model:       GetAiModel("gpt_fast_general", "gpt-4o-mini"),
 		Temperature: 0.8,
 		MaxTokens:   200,
 		Messages: []openAIMessage{

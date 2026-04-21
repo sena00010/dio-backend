@@ -13,6 +13,7 @@ import (
 	"github.com/gin-gonic/gin"
 	"github.com/kullaniciadiniz/dio-panel-backend/database"
 	"github.com/kullaniciadiniz/dio-panel-backend/models"
+	"github.com/kullaniciadiniz/dio-panel-backend/utils"
 )
 
 // ListCompetitors - Bir firmaya ait tüm rakipleri listeler
@@ -93,7 +94,7 @@ Dönüşü sadece içerisi JSON Array formatında olacak şekilde metin ver. JSO
 
 	// OpenAI request payload
 	reqBody := map[string]interface{}{
-		"model": "gpt-4o-mini", // Veya gpt-3.5-turbo
+		"model": utils.GetAiModel("gpt_fast_general", "gpt-4o-mini"), // Veya gpt-3.5-turbo
 		"messages": []map[string]interface{}{
 			{
 				"role":    "system",

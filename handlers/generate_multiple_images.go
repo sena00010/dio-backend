@@ -115,6 +115,7 @@ func GenerateMultipleImages(c *gin.Context) {
 				Slogan:         company.Slogan,
 				Description:    company.Description,
 				BrandFont:      company.BrandFont,
+				Website:        company.Website,
 				Platform:       post.Platform,
 				Headline:       post.Title,
 				SubText:        post.Content,

@@ -63,31 +63,77 @@ type IdeaResult struct {
 	DesignLayers          []DesignLayer `json:"design_layers"`
 }
 
+// Custom UnmarshalJSON to handle flexible hashtags (string or array of strings)
+func (i *IdeaResult) UnmarshalJSON(data []byte) error {
+	type Alias IdeaResult
+	aux := &struct {
+		Hashtags interface{} `json:"hashtags"`
+		*Alias
+	}{
+		Alias: (*Alias)(i),
+	}
+	if err := json.Unmarshal(data, &aux); err != nil {
+		return err
+	}
+
+	switch v := aux.Hashtags.(type) {
+	case string:
+		i.Hashtags = v
+	case []interface{}:
+		var tags []string
+		for _, tag := range v {
+			if str, ok := tag.(string); ok {
+				tags = append(tags, str)
+			}
+		}
+		i.Hashtags = strings.Join(tags, " ")
+	}
+	return nil
+}
+
 // ──────────────────────────────────────────────
 // Ana fonksiyon — Gemini birincil, OpenAI yedek
 // ──────────────────────────────────────────────
 
 func GenerateIdeas(topic, platform, campaignType string, count int, companyContext string) ([]IdeaResult, error) {
-	// Önce Gemini dene
-	results, err := generateWithGemini(topic, platform, campaignType, count, companyContext)
-	if err == nil {
-		// Post-process: her fikrin design_layers'ında çakışma düzelt
-		for i := range results {
-			results[i].DesignLayers = resolveLayerCollisions(results[i].DesignLayers)
-		}
-		return results, nil
+	dataMap := map[string]interface{}{
+		"topic":          topic,
+		"platform":       platform,
+		"campaignType":   campaignType,
+		"count":          count,
+		"companyContext": companyContext,
 	}
-	log.Printf("⚠️ Gemini hatası, OpenAI'ye geçiliyor: %v", err)
 
-	// OpenAI fallback
-	results, err = generateWithOpenAI(topic, platform, campaignType, count, companyContext)
+	resultText, err := GenerateWithPrompt("content_idea_generator", dataMap)
 	if err != nil {
-		return nil, fmt.Errorf("hem Gemini hem OpenAI başarısız oldu: %v", err)
+		return nil, fmt.Errorf("AI fikir üretim hatası: %v", err)
 	}
+
+	// Clean Markdown formatting commonly returned by AI
+	if strings.HasPrefix(resultText, "```json") {
+		resultText = strings.TrimPrefix(resultText, "```json")
+		resultText = strings.TrimSuffix(resultText, "```")
+	} else if strings.HasPrefix(resultText, "```") {
+		resultText = strings.TrimPrefix(resultText, "```")
+		resultText = strings.TrimSuffix(resultText, "```")
+	}
+	resultText = strings.TrimSpace(resultText)
+
+	var results []IdeaResult
+	if err := json.Unmarshal([]byte(resultText), &results); err != nil {
+		// AI bazen tek fikir üretince dizi yerine tekil obje döner — onu da yakala
+		var single IdeaResult
+		if err2 := json.Unmarshal([]byte(resultText), &single); err2 != nil {
+			return nil, fmt.Errorf("JSON ayrıştırma hatası: %v", err)
+		}
+		results = []IdeaResult{single}
+	}
+
 	// Post-process: her fikrin design_layers'ında çakışma düzelt
 	for i := range results {
 		results[i].DesignLayers = resolveLayerCollisions(results[i].DesignLayers)
 	}
+
 	return results, nil
 }
 
@@ -253,7 +299,7 @@ KURALLAR:
 	}
 
 	reqBody := openAIRequest{
-		Model:       "gpt-4o-mini",
+		Model:       GetAiModel("gpt_fast_general", "gpt-4o-mini"),
 		Temperature: 0.7,
 		MaxTokens:   500,
 		Messages: []openAIMessage{
@@ -644,7 +690,7 @@ func generateDesignLayersWithGemini(apiKey, prompt, style string) ([]DesignLayer
 
 func generateDesignLayersWithOpenAI(apiKey, prompt, style string) ([]DesignLayer, error) {
 	reqBody := openAIRequest{
-		Model:       "gpt-4o",
+		Model:       GetAiModel("gpt_smart_general", "gpt-4o"),
 		Temperature: 0.9,
 		MaxTokens:   1500,
 		Messages: []openAIMessage{
@@ -737,7 +783,7 @@ func generateWithOpenAI(topic, platform, campaignType string, count int, company
 	prompt := buildPrompt(topic, platform, campaignType, count, companyContext)
 
 	reqBody := openAIRequest{
-		Model: "gpt-4o",
+		Model: GetAiModel("gpt_smart_general", "gpt-4o"),
 		Messages: []openAIMessage{
 			{Role: "system", Content: "You are a professional social media content strategist and visual designer. Always respond with valid JSON only. Never include markdown formatting."},
 			{Role: "user", Content: prompt},
@@ -980,6 +1026,7 @@ type BrandContext struct {
 	Slogan          string
 	Description     string
 	BrandFont       string // Primary font from brand profile
+	Website         string // Brand website URL
 	// Post (içerik)
 	Platform        string // "Instagram", "LinkedIn", etc.
 	Headline        string // post.Title
@@ -1108,6 +1155,16 @@ func BuildProfessionalImagePrompt(ctx BrandContext) string {
 		descHint = fmt.Sprintf("\n- Brand DNA: %s", ctx.Description)
 	}
 
+	// NOT: Headline metin talimatı burada EKLENMEZ.
+	// Admin paneldeki content_idea_generator promptu zaten image_suggestion_prompt
+	// içinde başlık metnini görsele gömme talimatı veriyor.
+	// Burada da eklersek AI başlığı 2 kere yazar.
+	headlineInstruction := ""
+
+	// Marka logosu veya yazısı tamamen Admin Panel'den kontrol edilmelidir.
+	// Arka planda statik (hardcoded) bir logo komutu EKLENMEZ.
+	brandLogoInstruction := ""
+
 	prompt := fmt.Sprintf(
 		`You are a top-tier social media designer at a premium agency creating a scroll-stopping visual.
 
@@ -1119,22 +1176,24 @@ DESIGN BRIEF:
 
 SUBJECT / THEME:
 %s
-
+%s
+%s
 COMPOSITION & QUALITY REQUIREMENTS:
-- Fill the ENTIRE canvas edge-to-edge with rich visual content — ZERO blank areas, ZERO empty zones, ZERO white space margins.
+- Fill the ENTIRE canvas edge-to-edge with rich visual content — no blank areas or empty zones.
 - Create professional visual hierarchy with depth, layers, and premium lighting.
 - Add subtle premium details: natural shadows, reflections, bokeh, ambient lighting, or texture variations.
 - Make it scroll-stopping and instantly engaging — top creative agency quality.
-- The image will serve as a background for CSS text overlay — ensure contrast in text zones.
 
-ABSOLUTE ZERO-TEXT RULE (NON-NEGOTIABLE):
-- Do NOT include ANY text, letters, words, numbers, logos, watermarks, signs, labels, or typography.
-- Do NOT render the brand name, headline, dates, URLs, or any writing.
-- Represent content ONLY through visual metaphors and imagery.
-- The output must be a PURE VISUAL with zero readable characters.`,
+IMPORTANT RULES:
+- Do NOT include any watermarks, stock photo marks, or unrelated text.
+- Do NOT include random numbers, dates, or URLs unless specifically part of the headline above.
+- The headline text (if provided above) must be rendered beautifully inside the image.
+- The brand name (if provided above) should appear as an elegant, small signature.`,
 		platformHint, visualStyle, mood, colorPalette,
 		brandHint, sectorHint, audienceHint, sloganHint, descHint, textZoneHint,
 		themeDesc,
+		headlineInstruction,
+		brandLogoInstruction,
 	)
 
 	return prompt
@@ -1797,7 +1856,7 @@ func analyzeLogoWithOpenAI(apiKey, imageBase64, prompt string) (*LogoPositionRes
 	contentJSON, _ := json.Marshal(contentArray)
 
 	reqBody := visionRequest{
-		Model: "gpt-4o",
+		Model: GetAiModel("gpt_smart_general", "gpt-4o"),
 		Messages: []visionMessage{
 			{Role: "system", Content: json.RawMessage(`"You are a professional graphic designer. Always respond with valid JSON only."`)},
 			{Role: "user", Content: json.RawMessage(contentJSON)},
@@ -2074,7 +2133,7 @@ func analyzeTextPlacementWithOpenAI(apiKey, imageBase64, prompt string) ([]Desig
 	contentJSON, _ := json.Marshal(contentArray)
 
 	reqBody := visionRequest{
-		Model: "gpt-4o",
+		Model: GetAiModel("gpt_smart_general", "gpt-4o"),
 		Messages: []visionMessage{
 			{Role: "system", Content: json.RawMessage(`"You are a professional graphic designer specializing in text overlay placement on images. Always respond with valid JSON only. ALL text must be in TURKISH."`)},
 			{Role: "user", Content: json.RawMessage(contentJSON)},
@@ -2274,7 +2333,7 @@ func researchWithGemini(apiKey, prompt string) (*BrandResearchResult, error) {
 
 func researchWithOpenAI(apiKey, prompt string) (*BrandResearchResult, error) {
 	reqBody := openAIRequest{
-		Model:       "gpt-4o-mini",
+		Model:       GetAiModel("gpt_fast_general", "gpt-4o-mini"),
 		Temperature: 0.4,
 		MaxTokens:   1000,
 		Messages: []openAIMessage{

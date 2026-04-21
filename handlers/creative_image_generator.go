@@ -243,6 +243,7 @@ func generateImagesParallel(job *CreativeImageJob, variants []CreativeImageVaria
 				Slogan:         company.Slogan,
 				Description:    company.Description,
 				BrandFont:      company.BrandFont,
+				Website:        company.Website,
 				Platform:       variant.Platform,
 				Headline:       variant.Headline,
 				SubText:        variant.SubHeadline,
@@ -287,17 +288,10 @@ func generateImagesParallel(job *CreativeImageJob, variants []CreativeImageVaria
 				result.ImageURL = imageURL
 				atomic.AddInt32(&job.Completed, 1)
 
-				// ── AI Vision ile görseli analiz et ve metin yerleşimini belirle ──
-				log.Printf("🔍 [%s] AI Vision metin yerleşim analizi başlatılıyor...", variant.VariantID)
-				layers, layerErr := utils.AnalyzeImageForTextPlacement(imageURL, brandCtx)
-				if layerErr != nil {
-					log.Printf("⚠️ [%s] Vision analizi başarısız, varsayılan katmanlar kullanılacak: %v", variant.VariantID, layerErr)
-					// Fallback: basit varsayılan katmanlar (çakışma önlemeli)
-					result.DesignLayers = buildFallbackLayers(variant, company)
-				} else {
-					log.Printf("✅ [%s] Vision analizi tamamlandı: %d katman belirlendi", variant.VariantID, len(layers))
-					result.DesignLayers = layers
-				}
+				// ── AI Vision katman üretimi devre dışı ──
+				// Artık tüm metin ve logolar görselin içinde AI tarafından üretiliyor.
+				// Kullanıcı isterse stüdyoda kendi katmanlarını manuel ekleyebilir.
+				result.DesignLayers = []utils.DesignLayer{}
 			}
 			job.Images[variant.VariantID] = result
 			job.mu.Unlock()

@@ -64,49 +64,29 @@ func GenerateDescription(c *gin.Context) {
 }
 
 func buildDescriptionPrompt(req GenerateDescriptionRequest) string {
-	context := ""
-	if req.CompanyName != "" {
-		context += fmt.Sprintf("Marka/Şirket Adı: %s\n", req.CompanyName)
-	}
-	if req.Website != "" {
-		context += fmt.Sprintf("Website: %s\n", req.Website)
-	}
-	if req.Sector != "" {
-		context += fmt.Sprintf("Sektör: %s\n", req.Sector)
-	}
+	siteContent := ""
 	if req.ProductCategories != "" {
-		context += fmt.Sprintf("Ürün/Hizmet Kategorileri: %s\n", req.ProductCategories)
+		siteContent += fmt.Sprintf("Ürün/Hizmet Kategorileri: %s\n", req.ProductCategories)
 	}
 	if req.Goal != "" {
-		context += fmt.Sprintf("Hedef: %s\n", req.Goal)
+		siteContent += fmt.Sprintf("Hedef: %s\n", req.Goal)
 	}
 	if req.Slogan != "" {
-		context += fmt.Sprintf("Slogan: %s\n", req.Slogan)
+		siteContent += fmt.Sprintf("Slogan: %s\n", req.Slogan)
 	}
 
-	return fmt.Sprintf(`Sen bir dijital pazarlama ve marka stratejisti olarak çalışıyorsun. Aşağıdaki websiteyi veya marka adını analiz ederek şirket hakkında kısa ve net bir şirket özeti oluştur.
-
-%s
-
-Aşağıdaki bilgileri çıkar ve TEK BİR PARAGRAF halinde yaz:
-
-1. Şirket ne iş yapıyor
-2. Hangi hizmetleri sunuyor
-3. Kaç farklı hizmet alanı var
-4. Hedef müşteri kitlesi (çalışan sayısı ve şirket tipi)
-5. Reklamların ulaşması gereken kişiler (unvanlar ve departmanlar)
-6. Öncelikli sektörler
-7. Şirketin pazarlama diliyle yazılmış kısa bir şirket tanımı
-
-KURALLAR:
-- Çıktıyı profesyonel bir pazarlama analizi gibi yaz
-- Türkçe olarak yaz
-- Sadece düz metin paragraf ver — JSON, markdown, başlık, madde işareti KULLANMA
-- Kısa ve öz ol — maksimum 4-5 cümle
-- Markanın ses tonuna uygun, profesyonel bir dil kullan
-- Website varsa mutlaka analiz et ve gerçek bilgileri kullan
-
-SADECE açıklama metnini yaz, başka bir şey ekleme.`, context)
+	prompt, err := utils.GetRenderedPrompt("brand_description_generator", map[string]interface{}{
+		"companyName": req.CompanyName,
+		"sector":      req.Sector,
+		"website":     req.Website,
+		"siteContent": siteContent,
+	})
+	if err != nil || prompt == "" {
+		// Fallback failsafe
+		log.Printf("⚠️ fallback to legacy string")
+		return "Lütfen marka hakkında kısa bir özet çıkar."
+	}
+	return prompt
 }
 
 // ──────────────────────────────────────────────
@@ -188,7 +168,7 @@ func callOpenAIForDescription(prompt string) (string, error) {
 	}
 
 	reqBody := map[string]interface{}{
-		"model":       "gpt-4o-mini",
+		"model":       utils.GetAiModel("gpt_fast_general", "gpt-4o-mini"),
 		"temperature": 0.7,
 		"max_tokens":  500,
 		"messages": []map[string]interface{}{

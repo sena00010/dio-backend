@@ -260,6 +260,8 @@ func main() {
 			tiktok.GET("/auth/login", handlers.TikTokOAuthLogin)
 			tiktok.GET("/status", handlers.TikTokIntegrationStatus)
 			tiktok.GET("/dashboard", handlers.TikTokDashboardHandler)
+			tiktok.GET("/ad-accounts", handlers.TikTokListAdAccountsHandler)
+			tiktok.PUT("/select-account", handlers.TikTokSelectAdAccountHandler)
 			tiktok.GET("/debug", handlers.TikTokDebugHandler)
 			tiktok.DELETE("/disconnect", handlers.TikTokDisconnect)
 		}
@@ -283,6 +285,39 @@ func main() {
 		// Birleşik Dashboard Stats (Omnichannel)
 		// ──────────────────────────────────────────
 		api.GET("/dashboard/stats", handlers.DashboardStatsHandler)
+	}
+
+	// ──────────────────────────────────────────
+	// Admin Panel rotaları (public auth)
+	// ──────────────────────────────────────────
+	adminAuth := r.Group("/api/admin")
+	{
+		adminAuth.POST("/register", handlers.AdminRegister)
+		adminAuth.POST("/login", handlers.AdminLogin)
+	}
+
+	// ──────────────────────────────────────────
+	// Admin Panel rotaları (JWT korumalı)
+	// ──────────────────────────────────────────
+	admin := r.Group("/api/admin")
+	admin.Use(middleware.AdminAuthMiddleware())
+	{
+		admin.GET("/me", handlers.AdminMe)
+
+		// Prompt Yönetimi
+		admin.GET("/prompts", handlers.AdminListPrompts)
+		admin.GET("/prompts/categories", handlers.AdminListCategories)
+		admin.POST("/prompts", handlers.AdminCreatePrompt)
+		admin.POST("/prompts/seed", handlers.AdminSeedPrompts)
+		admin.POST("/prompts/translate", handlers.AdminTranslatePrompt)
+		admin.GET("/prompts/:key", handlers.AdminGetPrompt)
+		admin.PUT("/prompts/:key", handlers.AdminUpdatePrompt)
+
+		// AI Model Yönetimi
+		admin.GET("/ai-models", handlers.AdminListAiModels)
+		admin.POST("/ai-models/seed", handlers.AdminSeedAiModels)
+		admin.GET("/ai-models/:key", handlers.AdminGetAiModel)
+		admin.PUT("/ai-models/:key", handlers.AdminUpdateAiModel)
 	}
 
 	// ═══════════════════════════════════════

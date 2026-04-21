@@ -3,7 +3,7 @@
 -- https://www.phpmyadmin.net/
 --
 -- Anamakine: 127.0.0.1:3306
--- Üretim Zamanı: 20 Nis 2026, 00:09:40
+-- Üretim Zamanı: 20 Nis 2026, 21:44:16
 -- Sunucu sürümü: 10.4.24-MariaDB
 -- PHP Sürümü: 7.4.29
 
@@ -329,7 +329,33 @@ INSERT INTO `companies` (`id`, `user_id`, `name`, `sector`, `goal`, `content_lan
 (48, 43, 'Karaköy Güllüoğlu - Nadir Güllü', 'yiyecek', 'Geleneksel Türk tatlılarını Nadir Güllü kalitesiyle Türkiye genelinde ve uluslararası alanda daha geniş kitlelere ulaştırmak, marka mirasını koruyarak modern tüketici beklentilerine uygun yenilikçi ürünler sunmak ve online satış kanallarıyla erişilebilirliği artırmak.', 'tr', '[\"instagram\",\"facebook\"]', 'https://www.karakoygulluoglu.com/', '/uploads/logos/1775518724693285000_scraped.png', '[\"#ff0000\",\"#8993a4\",\"#254635\"]', '', 'Karaköy Güllüoğlu, Nadir Güllü markası altında, geleneksel Türk tatlıları olan baklava, kadayıf ve lokum başta olmak üzere geniş bir ürün yelpazesi sunan köklü bir kuruluştur. Online sipariş ve hızlı teslimat seçenekleriyle hem bireysel hem de kurumsal müşterilere hizmet veren marka, özel beslenme ihtiyaçlarına yönelik (glutensiz, vegan, diyabetik) ürünleriyle de dikkat çekmektedir.', '', '[\"premium\",\"konfor\",\"referans\"]', 'Baklava, Kadayıf, Lokum, Börek, Hediyelik Lezzetler, Özel Beslenme Ürünleri, Ezme, Kuruyemiş, Güllaç, T-Shirt, Sweatshirt, Kitap, Defter', NULL, '2026-04-07 02:37:58.101', '2026-04-07 02:38:44.700', 7, 'guvenilir_kurumsal', '', '', '', NULL, NULL, '[\"kalite\",\"cesit\",\"hiz\"]'),
 (49, 44, 'Karaköy Güllüoğlu - Nadir Güllü', 'yiyecek', 'Geleneksel Türk tatlı mirasındaki liderliğini sürdürerek, değişen tüketici ihtiyaçlarına yönelik inovatif ürünlerle pazar payını artırmak, online satış ve hızlı teslimat hizmetleriyle müşteri erişimini ve memnuniyetini en üst düzeyde tutmak.', 'tr', '', 'https://www.karakoygulluoglu.com/', '/uploads/logos/1775521406766378300_scraped.png', '[\"#ff0000\",\"#8993a4\",\"#254635\"]', '', 'Karaköy Güllüoğlu, Nadir Güllü markası altında, asırlık tariflerle geleneksel Türk tatlıları olan baklava, kadayıf ve lokumun yanı sıra, glutensiz, diyabetik ve vegan gibi modern beslenme alışkanlıklarına uygun özel lezzetler sunan köklü bir markadır. İstanbul içi aynı gün kurye ve Türkiye genelinde kargo ile online sipariş imkanıyla müşterilerine ulaşarak hem geleneği hem de yeniliği bir araya getirir.', '', '[\"impulsif\",\"analitik\",\"premium\",\"referans\",\"konfor\"]', 'Baklavalar (Fıstıklı, Cevizli, Fındıklı, Bademli, Glutensiz, Diyabetik/Şeker İlavesiz, Vegan, Tepsi Baklavalar, Özel Seri Baklavalar), Lokum, Kadayıf, Börek, Ezme, Kuruyemiş, Güllaç, Hediyelik Lezzetler (Tematik Paketler), Özel Beslenme Ürünleri, Kurumsal Hediyeler, Markalı Tasarım Ürünleri (T-Shirt, Kitap)', NULL, '2026-04-07 03:22:46.268', '2026-04-07 03:23:26.768', 6, 'guvenilir_kurumsal', '', '', '', NULL, NULL, '[\"kalite\",\"cesit\",\"hiz\",\"trend\"]'),
 (50, 45, 'Test Co', 'moda', '', 'tr', '[]', '', '', '[\"#e6272f\",\"#1c1f26\"]', '', '', '', '[\"impulsif\",\"analitik\"]', '', NULL, '2026-04-09 13:18:21.003', '2026-04-09 13:20:16.886', 7, 'genc_enerjik', '', '', '', NULL, NULL, '[\"fiyat\",\"trend\"]'),
-(51, 46, 'Karaköy Güllüoğlu - Nadir Güllü', 'yiyecek', 'Geleneksel Türk tatlılarını Nadir Güllü güvencesiyle geniş kitlelere ulaştırmak, online satış ve hızlı teslimat ağını genişleterek müşteri memnuniyetini artırmak, özel beslenme ihtiyaçlarına yönelik çözümler sunarak pazar payını büyütmek ve markanın kültürel mirasını korumak.', 'tr', '[\"instagram\",\"facebook\"]', 'https://www.karakoygulluoglu.com/', 'https://dio-cdn.b-cdn.net/logos/1776605556140086900_scraped.png', '[\"#ff0000\",\"#254635\",\"#8993a4\"]', '', 'Karaköy Güllüoğlu, Nadir Güllü markası altında, geleneksel Türk tatlıları olan baklava, kadayıf ve lokumu geniş ürün yelpazesiyle sunan köklü bir markadır. Online sipariş ve hızlı teslimat seçenekleriyle hem bireysel hem de kurumsal müşterilere hizmet vermektedir.', '', '[\"premium\",\"konfor\",\"referans\"]', 'Baklava, Kadayıf, Lokum, Börek, Hediyelik Lezzetler, Özel Beslenme Ürünleri, Ezme, Kuruyemiş, Güllaç Çeşitleri, Marka Tasarım Ürünleri (T-shirt, Kitap), Kurumsal Hediyeler', NULL, '2026-04-19 16:32:20.744', '2026-04-19 16:32:36.229', 7, 'sik_sofistike', '', '', '', NULL, NULL, '[\"kalite\",\"cesit\",\"hiz\"]');
+(51, 46, 'Karaköy Güllüoğlu - Nadir Güllü', 'yiyecek', 'Geleneksel Türk tatlılarını Nadir Güllü güvencesiyle geniş kitlelere ulaştırmak, online satış ve hızlı teslimat ağını genişleterek müşteri memnuniyetini artırmak, özel beslenme ihtiyaçlarına yönelik çözümler sunarak pazar payını büyütmek ve markanın kültürel mirasını korumak.', 'tr', '[\"instagram\",\"facebook\"]', 'https://www.karakoygulluoglu.com/', 'https://dio-cdn.b-cdn.net/logos/1776605556140086900_scraped.png', '[\"#ff0000\",\"#254635\",\"#8993a4\"]', '', 'Karaköy Güllüoğlu, Nadir Güllü markası altında, geleneksel Türk tatlıları olan baklava, kadayıf ve lokumu geniş ürün yelpazesiyle sunan köklü bir markadır. Online sipariş ve hızlı teslimat seçenekleriyle hem bireysel hem de kurumsal müşterilere hizmet vermektedir.', '', '[\"premium\",\"konfor\",\"referans\"]', 'Baklava, Kadayıf, Lokum, Börek, Hediyelik Lezzetler, Özel Beslenme Ürünleri, Ezme, Kuruyemiş, Güllaç Çeşitleri, Marka Tasarım Ürünleri (T-shirt, Kitap), Kurumsal Hediyeler', NULL, '2026-04-19 16:32:20.744', '2026-04-19 16:32:36.229', 7, 'sik_sofistike', '', '', '', NULL, NULL, '[\"kalite\",\"cesit\",\"hiz\"]'),
+(52, 47, 'Karaköy Güllüoğlu - Nadir Güllü', 'yiyecek', 'Geleneksel Türk tatlılarını (başta baklava olmak üzere) geniş bir kitleye ulaştırmak, online sipariş ve hızlı teslimat hizmetleri ile müşteri memnuniyetini sağlamak, markanın köklü mirasını modern kanallarla sürdürmek ve özel günlerde hediye seçenekleri sunmaktır.', 'tr', '[]', 'https://www.karakoygulluoglu.com/', 'https://dio-cdn.b-cdn.net/logos/1776638324515581000_scraped.png', '[\"#ff0000\",\"#8993a4\",\"#254635\"]', '', 'Karaköy Güllüoğlu, Nadir Güllü\'nün nesiller boyu aktarılan geleneksel tarifleriyle hazırlanan baklava, kadayıf ve lokum gibi Türk tatlılarını online olarak sunan köklü bir markadır. İstanbul içi aynı gün kurye ve Türkiye geneli kargo hizmetleriyle lezzetlerini müşterilerine ulaştırmaktadır.', '', '[\"premium\",\"konfor\",\"referans\"]', 'Baklava çeşitleri (fıstıklı, cevizli, glutensiz, vegan, diyabetik), Tepsi baklavalar, Kadayıf, Lokum, Börek, Hediyelik lezzetler, Özel beslenme ürünleri, Ezme, Kuruyemiş, Güllaç, Markalı tasarım ürünleri (giyim, kitap), Kurumsal hediyeler', NULL, '2026-04-20 01:34:08.957', '2026-04-20 01:38:44.598', 8, 'samimi_sicak', '', '', '', NULL, NULL, '[\"kalite\",\"cesit\",\"hiz\"]'),
+(53, 48, 'Karaköy Güllüoğlu - Nadir Güllü', 'yiyecek', 'Geleneksel Türk tatlılarını geniş bir kitleye ulaştırmak, online ve fiziksel satış kanallarını güçlendirmek, özel beslenme ihtiyaçlarına yönelik ürünler sunarak müşteri tabanını genişletmek ve marka bilinirliğini koruyarak pazar liderliğini sürdürmek.', 'tr', '[\"instagram\",\"facebook\",\"twitter\",\"linkedin\"]', 'https://www.karakoygulluoglu.com', 'https://dio-cdn.b-cdn.net/logos/1776638477001317800_scraped.png', '[\"#ff0000\",\"#254635\",\"#8993a4\"]', '', 'Karaköy Güllüoğlu, geleneksel Türk tatlıları olan baklava, kadayıf ve lokumda uzmanlaşmış, köklü bir markadır. Geniş ürün yelpazesiyle farklı beslenme tercihlerine (glutensiz, diyabetik, vegan) ve özel günlere yönelik çözümler sunarken, online sipariş ve hızlı teslimat hizmetleriyle müşteri memnuniyetini ön planda tutar.', '', '[\"premium\",\"konfor\",\"referans\",\"impulsif\"]', 'Baklavalar, Fıstıklı Baklavalar, Cevizli Baklavalar, Glutensiz Baklavalar, Fındıklı Baklavalar, Diyabetik Baklavalar, Vegan Baklavalar, Bademli Baklavalar, Fıstıklı Kare Baklava, Diabak Baklavalar, Tepsi Baklavalar, Özel Seri Tepsi Baklavalar, Lokum, Kadayıf, Börek, Hediyelik Lezzetler, Kent Mirası - İstanbul Hediyelik, Sevgililer Günü\'ne Özel, Yılbaşı Hediye Paketleri, Alternatif Lezzetler, Özel Beslenme Ürünleri, Ezme, Kuruyemiş, Güllaç Çeşitleri, Kurumsal Hediyeler, Karaköy Güllüoğlu Tasarımlar, T-Shirt, Sweatshirt, Kitap, Defter', NULL, '2026-04-20 01:40:48.430', '2026-04-20 01:41:17.084', 8, 'guvenilir_kurumsal', '', '', '', NULL, NULL, '[\"kalite\",\"cesit\",\"hiz\"]');
+
+-- --------------------------------------------------------
+
+--
+-- Tablo için tablo yapısı `company_competitors`
+--
+
+CREATE TABLE `company_competitors` (
+  `id` bigint(20) UNSIGNED NOT NULL,
+  `company_id` bigint(20) UNSIGNED NOT NULL,
+  `name` varchar(255) COLLATE utf8mb4_unicode_ci NOT NULL,
+  `website` varchar(255) COLLATE utf8mb4_unicode_ci DEFAULT NULL,
+  `created_at` datetime(3) DEFAULT NULL,
+  `updated_at` datetime(3) DEFAULT NULL
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+--
+-- Tablo döküm verisi `company_competitors`
+--
+
+INSERT INTO `company_competitors` (`id`, `company_id`, `name`, `website`, `created_at`, `updated_at`) VALUES
+(1, 53, 'Hafız Mustafa', 'https://www.hafizmustafa.com', '2026-04-20 01:41:17.090', '2026-04-20 01:41:17.090'),
+(2, 53, 'Çınaraltı', 'https://www.cinaralti.com', '2026-04-20 01:41:17.092', '2026-04-20 01:41:17.092'),
+(3, 53, 'Pelit', 'https://www.pelit.com.tr', '2026-04-20 01:41:17.094', '2026-04-20 01:41:17.094');
 
 -- --------------------------------------------------------
 
@@ -1029,8 +1055,9 @@ INSERT INTO `seo_integrations` (`id`, `company_id`, `gsc_property_url`, `access_
 (3, 21, '', 'ya29.a0Aa7MYiqEkjd3gIyuTbIxaBeXO8-DL0xQ3NXV_-Y9lh63FNNY_po7AyMC3dHscnQ9Z1UYSKnnHsI9sSJs8H9Kxx4A23608T_N3v4U_8vRySpv-JouFDnPRRsFjeDqA8tv1pg1AqmO4IA753kFo0WuHCjyhpWyUe39swaSTqiWFl7E4yNY7Dt_DhBKjg1YwzoZdX5wd4QaCgYKAbMSARISFQHGX2MivKGdiZHth6I5o8M6HyDrcw0206', '1//03BAbsh1LO-OQCgYIARAAGAMSNwF-L9IrY5_J7N9H5MOGtKLyOw_0IDxJN0YyIbZumgN5T2EZ6qTWnlhWouunp9vrMV84Y7xVE7o', '2026-04-05 19:59:21.425', '2026-04-05 17:46:13.622', '2026-04-05 18:59:22.426', 'google', 'https://creatortr.com/'),
 (5, 29, '', 'ya29.a0Aa7MYiqw-Y28MU6d--iOkgwj6dUxdqjhBJL9atcMCP8MFGO0kRz469NUbJWdfpAHadzWoldW4skfZV3Fw7t7sU4q9jeo4dWhtkqvIQLZdIZHQz9Ma5_uF_fU4mgargyBa2xHNCZL112oql5Au-RVdE-H0uUiodQy8ScxX-9snQUJqbGUIOu_n25Jj8cJZ_uXk8nTUxAaCgYKAUcSARISFQHGX2Mi-SiCdJNHf34GV0n8FYhzag0206', '1//03faG7KAq5ER4CgYIARAAGAMSNwF-L9IrP_J3N7EMqzW5zgNhwUQUKaLnp_ZtX00L0vZCRLr_4GMQtolkC0qVhUNP544YzbwNL_M', '2026-04-06 14:42:16.816', '2026-04-06 11:21:51.668', '2026-04-06 13:42:17.818', 'google', 'https://creatortr.com/'),
 (6, 39, '', 'ya29.a0Aa7MYip9hCGgnbQZbIOxcgYC36omVtzLMuU_WtFgQSzIk0LJCrU7ycHGTsF3KTPIDG25prOXlc8vJzyp2_QcvwnECJXxqH4tZDVMvF4hA1Y79orZxD7EUDNTOYa64v6cRhp4ijqKpBWqKgEQhw2I_641dlArYsHZXkwNqdXBgPR2EnBawqAzgZfhsvlVpFPr-Z5A_hsaCgYKAWoSARISFQHGX2MittkWWFAvV5mqm8CTaWWG8Q0206', '1//03Y9Fh2DhAejtCgYIARAAGAMSNwF-L9Ir2uHLG7DsIGzL5yXYf9FDxjGlOr4IkhbGKHr6Q8anijwA90wEt8fNOG-qBNmOTQvKEw8', '2026-04-06 19:33:40.161', '2026-04-06 17:30:32.099', '2026-04-06 18:33:41.162', 'google', 'https://semengineer.com/'),
-(10, 16, '', 'ya29.a0Aa7MYirZPixHkQwfOcHeTy16osEPyJVRqxjaxSW96Ndy7SBA6OGIDot5OT4-8hkQLb3vl8R3d0SKyKOZPULOTKOgmbZDYUVhIyjymdMxX5N74uIZL9VsFSAdUYVN8G1zUiIxxzu0GTSq__37ohxNjn5in6St3qERe0k8n7SnneuBQkNk619C9HQevAjjqrM4V7aEsuq3aCgYKAQkSARISFQHGX2MixSM5rfrUmjt47pfybe29KA0207', '1//03kwV7fKoTS2dCgYIARAAGAMSNwF-L9IrrH5YaPmGNeRmy_LE0JlEvW411NPpVpSLxYJap7p90twILys4l2Rfmf2GSbCAFsoujMs', '2026-04-17 00:28:50.978', '2026-04-11 21:07:19.926', '2026-04-16 23:28:51.978', 'google', 'https://creatortr.com/'),
-(11, 51, '', 'ya29.a0Aa7MYioYmX9Bn3vChF-6sayUeXXqkFc9SJQDwUUZD3AXQ9ORiQWJdHIhEiNR2aBiSaRVpklUd7YIJKpYn8ZfTVnO1BmdWIXgiXZ3mObpa-udi7IjQHLin0iz8grSLXmL5CAXKa38AsmnOhJ6u8H5Vx_bYFkfpkege2V92e1AUqI6HTubUnpN75drM8zK2TS1bHRYSYsaCgYKAQsSARASFQHGX2MiAjnEr2RBAvi_xYdzM1_arA0206', '1//03G9zx2aidOuECgYIARAAGAMSNwF-L9Iri0n3nkEGqeAUX4ON8huCyNczxKZpU4NSrfV6s7xEOAMOrxbtAHNAtp-b1Zk2_paSseA', '2026-04-19 17:32:41.367', '2026-04-19 16:32:42.673', '2026-04-19 16:32:42.673', 'google', 'https://dijitalisortagi.com/');
+(11, 51, '', 'ya29.a0Aa7MYioYmX9Bn3vChF-6sayUeXXqkFc9SJQDwUUZD3AXQ9ORiQWJdHIhEiNR2aBiSaRVpklUd7YIJKpYn8ZfTVnO1BmdWIXgiXZ3mObpa-udi7IjQHLin0iz8grSLXmL5CAXKa38AsmnOhJ6u8H5Vx_bYFkfpkege2V92e1AUqI6HTubUnpN75drM8zK2TS1bHRYSYsaCgYKAQsSARASFQHGX2MiAjnEr2RBAvi_xYdzM1_arA0206', '1//03G9zx2aidOuECgYIARAAGAMSNwF-L9Iri0n3nkEGqeAUX4ON8huCyNczxKZpU4NSrfV6s7xEOAMOrxbtAHNAtp-b1Zk2_paSseA', '2026-04-19 17:32:41.367', '2026-04-19 16:32:42.673', '2026-04-19 16:32:42.673', 'google', 'https://dijitalisortagi.com/'),
+(12, 53, '', 'ya29.a0Aa7MYio39DJt_AWB_x2FQcWRtqhmzad0GjI6rbFvZYww4luKdEB2TsfBGeN7YUct7cWibFsLjkuXNeinE4mxEJOOk7WCkCHldCFK6WRiVQ9Y2vNt2p0f_SrJXAQUg6GpBAukgwHt8XsGcDOC_WZ7s3ozeMz7aTt1knERn2l8E0aDMHD1wdTuMz3eaXovSy8MUeUgx6EaCgYKATYSARMSFQHGX2MirWMu66jp9nE1BUKUmBUkuw0206', '1//031c2sJnL5q9CCgYIARAAGAMSNwF-L9Ir1xR_-pkLwSiRQ3yRFURDXHMweZiNuspdDhBPFYhQNiSyGVnwPKwUHk28OHPy3OqbOx0', '2026-04-20 02:41:22.357', '2026-04-20 01:41:23.613', '2026-04-20 01:41:23.613', 'google', ''),
+(13, 16, '', 'ya29.a0Aa7MYioV1jE8LeGT5XwPKCNMh6yFslR5USPB5ojzGuzEmAY0sy9n5D_oSbCT3Schk8PmS4TW49x5D-NNgYD99BvmuD1MbQ6SK2o2FUlNhd7vGzVkDLSqv4UA_xWUNumZAjJojeXMxq_4Drs7KPHMCzIC9AkPZybIOsbY5WuwchppetqmdMNHqpP0gJipCtUrvVxKWzcaCgYKASASARISFQHGX2MickHp82onFjHdw4HyT-LLsw0206', '1//03aatC4QpmHYXCgYIARAAGAMSNwF-L9IrgWHBjwapa814I1GP0TV3PsEDpfg7t5q4siGTAKL31_B7pDPKLu7w5SaSuhZm8vq9zws', '2026-04-20 02:49:15.542', '2026-04-20 01:49:16.874', '2026-04-20 01:49:16.874', 'google', 'https://semengineer.com/');
 
 -- --------------------------------------------------------
 
@@ -6658,8 +6685,8 @@ CREATE TABLE `seo_projects` (
 --
 
 INSERT INTO `seo_projects` (`id`, `company_id`, `domain_url`, `project_name`, `is_active`, `created_at`, `updated_at`, `site_url`, `display_name`, `permission_level`, `last_sync_at`) VALUES
-(1, 16, 'https://creatortr.com', 'Creatortr', 1, '2026-04-11 19:18:02.597', '2026-04-16 11:56:15.248', 'https://creatortr.com/', 'creatortr.com', 'siteOwner', '2026-04-16 11:33:47.026'),
-(2, 16, 'https://semengineer.com', 'Semengineer', 1, '2026-04-11 19:18:02.605', '2026-04-16 11:56:15.253', 'https://semengineer.com/', 'semengineer.com', 'siteOwner', '2026-04-11 23:20:10.259');
+(1, 16, 'https://creatortr.com', 'Creatortr', 1, '2026-04-11 19:18:02.597', '2026-04-20 01:49:57.990', 'https://creatortr.com/', 'creatortr.com', 'siteOwner', '2026-04-16 11:33:47.026'),
+(2, 16, 'https://semengineer.com', 'Semengineer', 1, '2026-04-11 19:18:02.605', '2026-04-20 01:49:57.987', 'https://semengineer.com/', 'semengineer.com', 'siteOwner', '2026-04-11 23:20:10.259');
 
 -- --------------------------------------------------------
 
@@ -7116,7 +7143,9 @@ INSERT INTO `users` (`id`, `firebase_uid`, `first_name`, `last_name`, `email`, `
 (43, NULL, 'sfas', 'fsdf', 'sdfsdf55@gmail.com', '', '$2a$10$gHUPYChTqrla09TbNJ6I/uwgFIizqrFNS2a6XfsmWEWDyfsM.IWWG', 'email', '2026-04-07 02:37:58.099', '2026-04-07 02:37:58.099'),
 (44, NULL, 'lorem', 'ipsum', 'lunara01269@gmail.com', '', '$2a$10$Go.ccD8HDGX9UO.ECn/W9O85jk5.8o5SAcjGAXgsX7tPzB/pdC1a.', 'email', '2026-04-07 03:22:46.264', '2026-04-07 03:22:46.264'),
 (45, NULL, 'Test', 'User', 'test@example.com', '', '$2a$10$O2KKLHLkbmsVxhHWBak3RuVyhcZUQj9wjH.mgHU8RFlttfTrPsGoK', 'email', '2026-04-09 13:18:20.992', '2026-04-09 13:18:20.992'),
-(46, 'qZW3PpmQbeWB2q4V2fJfzbLk0Q83', 'Dijital', 'İş Ortağı', 'dijitalisortagicom@gmail.com', '', '', 'google', '2026-04-19 16:31:48.084', '2026-04-19 16:31:48.084');
+(46, 'qZW3PpmQbeWB2q4V2fJfzbLk0Q83', 'Dijital', 'İş Ortağı', 'dijitalisortagicom@gmail.com', '', '', 'google', '2026-04-19 16:31:48.084', '2026-04-19 16:31:48.084'),
+(47, NULL, 'Aslı', 'Sarı', 'asli@gmail.com', '', '$2a$10$btrP84tCMK3Kz0wKQyEU.On7URsurV6Y.R8ZOVyb/X67Bfi1NiYSi', 'email', '2026-04-20 01:34:08.951', '2026-04-20 01:34:08.951'),
+(48, 'sMXGMCTz7jOjbKShipf0lu5ksCm2', 'ANIL', 'CAN MAYANCUR', 'anilcan@mayancur.com', '', '', 'google', '2026-04-20 01:40:22.095', '2026-04-20 01:40:22.095');
 
 -- --------------------------------------------------------
 
@@ -7201,6 +7230,13 @@ CREATE TABLE `user_tiktok_accounts` (
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
 --
+-- Tablo döküm verisi `user_tiktok_accounts`
+--
+
+INSERT INTO `user_tiktok_accounts` (`id`, `user_id`, `company_id`, `access_token`, `refresh_token`, `token_expires_at`, `advertiser_id`, `account_name`, `created_at`, `updated_at`) VALUES
+(1, 13, 16, 'bfdf8d50eef088a6da28ac6ea045a3f8c820825c', NULL, NULL, NULL, NULL, '2026-04-20 13:14:36.173', '2026-04-20 13:14:36.173');
+
+--
 -- Dökümü yapılmış tablolar için indeksler
 --
 
@@ -7233,6 +7269,13 @@ ALTER TABLE `ai_topic_suggestions`
 ALTER TABLE `companies`
   ADD PRIMARY KEY (`id`),
   ADD KEY `idx_companies_user_id` (`user_id`);
+
+--
+-- Tablo için indeksler `company_competitors`
+--
+ALTER TABLE `company_competitors`
+  ADD PRIMARY KEY (`id`),
+  ADD KEY `idx_company_competitors_company_id` (`company_id`);
 
 --
 -- Tablo için indeksler `posts`
@@ -7487,7 +7530,13 @@ ALTER TABLE `ai_topic_suggestions`
 -- Tablo için AUTO_INCREMENT değeri `companies`
 --
 ALTER TABLE `companies`
-  MODIFY `id` bigint(20) UNSIGNED NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=52;
+  MODIFY `id` bigint(20) UNSIGNED NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=54;
+
+--
+-- Tablo için AUTO_INCREMENT değeri `company_competitors`
+--
+ALTER TABLE `company_competitors`
+  MODIFY `id` bigint(20) UNSIGNED NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=4;
 
 --
 -- Tablo için AUTO_INCREMENT değeri `posts`
@@ -7565,7 +7614,7 @@ ALTER TABLE `seo_discovery_metrics`
 -- Tablo için AUTO_INCREMENT değeri `seo_integrations`
 --
 ALTER TABLE `seo_integrations`
-  MODIFY `id` bigint(20) UNSIGNED NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=12;
+  MODIFY `id` bigint(20) UNSIGNED NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=14;
 
 --
 -- Tablo için AUTO_INCREMENT değeri `seo_keyword_daily_stats`
@@ -7631,7 +7680,7 @@ ALTER TABLE `team_members`
 -- Tablo için AUTO_INCREMENT değeri `users`
 --
 ALTER TABLE `users`
-  MODIFY `id` bigint(20) UNSIGNED NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=47;
+  MODIFY `id` bigint(20) UNSIGNED NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=49;
 
 --
 -- Tablo için AUTO_INCREMENT değeri `user_google_ads_accounts`
@@ -7655,7 +7704,7 @@ ALTER TABLE `user_meta_accounts`
 -- Tablo için AUTO_INCREMENT değeri `user_tiktok_accounts`
 --
 ALTER TABLE `user_tiktok_accounts`
-  MODIFY `id` int(11) NOT NULL AUTO_INCREMENT;
+  MODIFY `id` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=2;
 
 --
 -- Dökümü yapılmış tablolar için kısıtlamalar
@@ -7681,6 +7730,13 @@ ALTER TABLE `ai_schedules`
 --
 ALTER TABLE `companies`
   ADD CONSTRAINT `fk_users_company` FOREIGN KEY (`user_id`) REFERENCES `users` (`id`) ON DELETE CASCADE;
+
+--
+-- Tablo kısıtlamaları `company_competitors`
+--
+ALTER TABLE `company_competitors`
+  ADD CONSTRAINT `fk_companies_competitors` FOREIGN KEY (`company_id`) REFERENCES `companies` (`id`),
+  ADD CONSTRAINT `fk_company_competitors_company` FOREIGN KEY (`company_id`) REFERENCES `companies` (`id`) ON DELETE CASCADE;
 
 --
 -- Tablo kısıtlamaları `posts`

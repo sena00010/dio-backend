@@ -56,6 +56,9 @@ func Connect() {
 		&models.UserGoogleAdsAccount{},
 		&models.UserTikTokAccount{},
 		&models.UserLinkedInAccount{},
+		&models.SystemPrompt{},
+		&models.AdminUser{},
+		&models.AiModelSetting{},
 	); err != nil {
 		log.Fatalf("❌ AutoMigrate hatası: %v", err)
 	}

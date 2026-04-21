@@ -432,7 +432,7 @@ func describeReferenceWithOpenAI(apiKey, imageBase64, prompt string) (string, er
 	contentJSON, _ := json.Marshal(contentArray)
 
 	reqBody := visionRequest{
-		Model: "gpt-4o",
+		Model: GetAiModel("gpt_smart_general", "gpt-4o"),
 		Messages: []visionMessage{
 			{Role: "system", Content: json.RawMessage(`"Sen e-ticaret gorsel uretimi icin urun fotografi analiz ediyorsun. Yalnizca duz Turkce metinle cevap ver."`)},
 			{Role: "user", Content: json.RawMessage(contentJSON)},
@@ -510,7 +510,8 @@ func GenerateProductImageEdit(imageURL, prompt string, width, height int) (strin
 	var body bytes.Buffer
 	writer := multipart.NewWriter(&body)
 
-	if err := writer.WriteField("model", "gpt-image-1"); err != nil {
+	imgEditModel := GetAiModel("gpt_image_edit", "gpt-image-1")
+	if err := writer.WriteField("model", imgEditModel); err != nil {
 		return "", err
 	}
 	if err := writer.WriteField("prompt", prompt); err != nil {
@@ -716,7 +717,8 @@ func callOpenAIImageEditWithSource(apiKey, imagePath string, imageBytes []byte, 
 	var body bytes.Buffer
 	writer := multipart.NewWriter(&body)
 
-	if err := writer.WriteField("model", "gpt-image-1"); err != nil {
+	imgEditModel := GetAiModel("gpt_image_edit", "gpt-image-1")
+	if err := writer.WriteField("model", imgEditModel); err != nil {
 		return "", err
 	}
 	if err := writer.WriteField("prompt", prompt); err != nil {

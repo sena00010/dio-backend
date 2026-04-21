@@ -82,7 +82,8 @@ func GenerateIdeas(c *gin.Context) {
 	for _, idea := range ideas {
 		// JSON serialize
 		contentItemsJSON, _ := json.Marshal(idea.ContentItems)
-		designLayersJSON, _ := json.Marshal(idea.DesignLayers)
+		// design_layers artık kullanılmıyor — metin görselin içinde üretiliyor
+		designLayersJSON := []byte("[]")
 
 		aiIdea := models.AiIdea{
 			CompanyID:             req.CompanyID,
@@ -429,6 +430,7 @@ func GeneratePostImage(c *gin.Context) {
 		Slogan:         company.Slogan,
 		Description:    company.Description,
 		BrandFont:      company.BrandFont,
+		Website:        company.Website,
 		// Post (içerik)
 		Platform:     post.Platform,
 		Headline:     post.Title,
@@ -448,22 +450,10 @@ func GeneratePostImage(c *gin.Context) {
 		return
 	}
 
-	// ── AI Vision ile görseli analiz edip metin yerleşimini belirle ──
-	// Görseli gerçekten analiz ederek metinlerin konunun üzerine binmesini önler
-	newLayers, layerErr := utils.AnalyzeImageForTextPlacement(localURL, brandCtx)
-	if layerErr != nil {
-		log.Printf("⚠️ Vision metin yerleşim analizi başarısız, klasik katman üretimi deneniyor: %v", layerErr)
-		// Fallback: eski yöntem (görseli görmeden katman üret)
-		newLayers, layerErr = utils.GenerateDesignLayers(brandCtx)
-		if layerErr != nil {
-			log.Printf("⚠️ Katman üretme de başarısız (mevcut katmanlar korunuyor): %v", layerErr)
-		}
-	}
-	if len(newLayers) > 0 {
-		layersJSON, _ := json.Marshal(newLayers)
-		post.DesignLayers = string(layersJSON)
-		log.Printf("✅ %d yeni katman üretildi (Vision-based, stil: %s)", len(newLayers), req.Style)
-	}
+	// ── AI Vision katman üretimi devre dışı ──
+	// Artık tüm metin ve logolar görselin içinde AI tarafından üretiliyor.
+	// Kullanıcı isterse stüdyoda kendi katmanlarını manuel ekleyebilir.
+	post.DesignLayers = "[]"
 
 	// ── AI Vision ile optimal logo pozisyonunu analiz et ──
 	logoPos, logoErr := utils.AnalyzeImageForLogoPosition(localURL, company.Name)

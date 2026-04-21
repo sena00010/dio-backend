@@ -176,7 +176,7 @@ func callOpenAIForToneExamples(prompt string) ([]ToneExample, error) {
 	}
 
 	reqBody := map[string]interface{}{
-		"model":       "gpt-4o-mini",
+		"model":       utils.GetAiModel("gpt_fast_general", "gpt-4o-mini"),
 		"temperature": 0.8,
 		"max_tokens":  2000,
 		"messages": []map[string]interface{}{

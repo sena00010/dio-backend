@@ -71,7 +71,7 @@ func FetchTikTokAccountInsights(accessToken, advertiserID string) (*TikTokAccoun
 	params.Set("report_type", "BASIC")
 	params.Set("data_level", "AUCTION_ADVERTISER")
 	params.Set("dimensions", `["advertiser_id"]`)
-	params.Set("metrics", `["spend","clicks","conversion","cpa","conversion_rate"]`)
+	params.Set("metrics", `["spend","clicks","conversion","conversion_rate"]`)
 	params.Set("start_date", startDate)
 	params.Set("end_date", endDate)
 	params.Set("page_size", "10")
@@ -116,8 +116,14 @@ func FetchTikTokAccountInsights(accessToken, advertiserID string) (*TikTokAccoun
 		clicks, _ := strconv.ParseFloat(m.Clicks, 64)
 		insights.Clicks = int64(clicks)
 		insights.Conversions, _ = strconv.ParseFloat(m.Conversion, 64)
-		insights.CPA, _ = strconv.ParseFloat(m.CPA, 64)
 		insights.ConversionRate, _ = strconv.ParseFloat(m.ConversionRate, 64)
+		
+		// CPA'i manuel hesapla: Harcama / Dönüşüm (bölme hatası olmaması için kontrol edelim)
+		if insights.Conversions > 0 {
+			insights.CPA = insights.Spend / insights.Conversions
+		} else {
+			insights.CPA = 0
+		}
 	}
 
 	log.Printf("[TIKTOK] ✅ Insights: spend=%.2f, clicks=%d, conversions=%.0f, cpa=%.2f",

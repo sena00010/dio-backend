@@ -309,7 +309,7 @@ func callOpenAIForTopics(prompt string) ([]TopicSuggestion, error) {
 	}
 
 	reqBody := openAIRequest{
-		Model:       "gpt-4o-mini",
+		Model:       GetAiModel("gpt_fast_general", "gpt-4o-mini"),
 		Temperature: 0.85,
 		MaxTokens:   4096,
 		Messages: []openAIMessage{
@@ -456,7 +456,7 @@ func callGeminiRaw(apiKey, prompt string) (string, error) {
 
 func callOpenAIRaw(apiKey, prompt string) (string, error) {
 	reqBody := openAIRequest{
-		Model:       "gpt-4o-mini",
+		Model:       GetAiModel("gpt_fast_general", "gpt-4o-mini"),
 		Temperature: 0.7,
 		MaxTokens:   2000,
 		Messages: []openAIMessage{
