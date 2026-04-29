@@ -71,6 +71,7 @@ func callOpenAIText(model string, prompt string) (string, error) {
 	reqBody := map[string]interface{}{
 		"model":       model,
 		"temperature": 0.7,
+		"max_tokens":  8192,
 		"messages": []map[string]interface{}{
 			{"role": "user", "content": prompt},
 		},

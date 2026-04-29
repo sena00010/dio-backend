@@ -159,7 +159,7 @@ func AdminSeedAiModels(c *gin.Context) {
 			Category:    "Ürün Görsel Stüdyosu",
 			Title:       "Ürün Düzenleme (Image Edit API)",
 			Description: "Ürün görsellerinin arka planlarına stüdyo görünümü vs koymak için kullanılan DALL-E tabanlı edit modeli.",
-			ModelName:   "gpt-image-1",
+			ModelName:   "dall-e-2",
 			Provider:    "openai",
 		},
 	}

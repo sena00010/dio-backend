@@ -5,6 +5,9 @@ import (
 	"encoding/base64"
 	"encoding/json"
 	"fmt"
+	"image"
+	_ "image/jpeg"
+	"image/png"
 	"io"
 	"log"
 	"mime/multipart"
@@ -15,7 +18,31 @@ import (
 	"time"
 
 	"github.com/kullaniciadiniz/dio-panel-backend/models"
+	_ "golang.org/x/image/webp"
 )
+
+// resolveOpenAIImageModel — admin paneldeki provider "openai" ise, seçili modeli kontrol eder.
+// Geçerli bir OpenAI image modeli ise onu kullanır, değilse gpt-image-2 döner.
+func resolveOpenAIImageModel() string {
+	// Admin'de "product_studio_edit" prompt'unda seçili provider OpenAI ise,
+	// oradaki ai_model'i al
+	adminModel := GetAiModel("gpt_image_edit", "")
+
+	// Geçerli OpenAI image modelleri
+	validOpenAIImageModels := map[string]bool{
+		"gpt-image-2": true,
+		"gpt-image-1": true,
+		"dall-e-3":     true,
+		"dall-e-2":     true,
+	}
+
+	if validOpenAIImageModels[adminModel] {
+		return adminModel
+	}
+
+	// Admin'de geçersiz/metin modeli seçilmişse default kullan
+	return "gpt-image-2"
+}
 
 type ProductStudioPreset struct {
 	Key           string `json:"key"`
@@ -85,6 +112,8 @@ func DefaultProductStudioPresets() []ProductStudioPreset {
 }
 
 // BuildProductStudioPrompt -- Detayli prompt (fallback generation icin).
+// Önce system_prompts tablosundan "product_studio_main" key ile çeker,
+// bulamazsa hard-coded fallback kullanır.
 func BuildProductStudioPrompt(company models.Company, studio models.ProductImageStudio, preset ProductStudioPreset, referenceSummary string) string {
 	brandColors := company.BrandColors
 	if brandColors == "" {
@@ -96,6 +125,33 @@ func BuildProductStudioPrompt(company models.Company, studio models.ProductImage
 		categoryHint = "Otomatik algilanan urun kategorisi"
 	}
 
+	// system_prompts tablosundan çekmeyi dene
+	data := map[string]interface{}{
+		"companyName":                    company.Name,
+		"presetPlatform":                 preset.Platform,
+		"referenceSummary":               referenceSummary,
+		"companySector":                  company.Sector,
+		"categoryHint":                   categoryHint,
+		"companyTargetAudience":          company.TargetAudience,
+		"companyToneOfVoice":             company.ToneOfVoice,
+		"brandColors":                    brandColors,
+		"presetName":                     preset.Name,
+		"presetWidth":                    preset.Width,
+		"presetHeight":                   preset.Height,
+		"presetBackground":               preset.Background,
+		"presetDesignNotes":              preset.DesignNotes,
+		"inferSourceCreativeDirection":   inferSourceCreativeDirection(referenceSummary),
+		"inferPlatformCreativeRules":     inferPlatformCreativeRules(preset),
+		"inferVisualReferenceStyle":      inferVisualReferenceStyle(referenceSummary),
+	}
+
+	if rendered, err := GetRenderedPrompt("product_studio_main", data); err == nil && rendered != "" {
+		log.Printf("✅ product_studio_main prompt system_prompts tablosundan yüklendi")
+		return rendered
+	}
+
+	log.Printf("⚠️ product_studio_main system_prompts'ta bulunamadı, hardcoded fallback kullanılıyor")
+
 	return fmt.Sprintf(`Sen %s icin calisan kidemli bir e-ticaret art direktoru ve sosyal ticaret gorsel stratejistisin.
 
 AMAC:
@@ -103,13 +159,6 @@ AMAC:
 - Urunun siluetini, oranlarini, ambalaj kimligini, on yuzunu ve taniyabilir urun tipini koru.
 - Ayni urunu "%s" icin daha premium, daha profesyonel ve paylasilabilir bir platform gorseline donustur.
 - Daginik arka plani temizle, ama yeni bir urun tasarlama.
-
-TEMEL TALIMAT:
-- Kaynak gercek sadece yuklenen gorseldir.
-- Bu urunu kullanarak harika bir tasarimla revize et.
-- Sonuc Hepsiburada, Trendyol ve sosyal medya hesaplarinda paylasilabilecek kadar guclu olmali.
-- Asla farkli bir urun, farkli bir paket, farkli bir hayvan mamasi ya da farkli bir kategori uretme.
-- Asla DIO ekleme, ekstra logo ekleme, yeni watermark ekleme.
 
 KAYNAK URUN OZETI:
 %s
@@ -136,28 +185,34 @@ ZORUNLU KURALLAR:
 - Bu bir yeni urun uretimi degil, yuklenen urunun gorsel revizesidir.
 - Urun her zaman ana kahraman olsun.
 - Urunun gorunen marka alani, paket yapisi, urun tipi ve genel kimligi korunmali.
-- Paketli bir kedi mamasiysa sonuc yine ayni paketli kedi mamasi olmali.
-- Urunun uzerindeki mevcut tasarim dili korunabilir ama disaridan yeni tasarim urun yaratma.
-- DIO, baska logo, kampanya damgasi, rozet, watermark, UI, el, sticker veya alakasiz nesne ekleme.
-- Gorseli daha iyi isik, daha temiz kompozisyon, daha iyi golge, daha premium doku ve daha profesyonel sahneleme ile guclendir.
-- Destek ogeleri kullanilacaksa kategoriyle uyumlu olsun ve urunden rol calmaya calismasin.
-- Pazaryerinde urun net secilmeli; sosyal medyada ise daha estetik ama yine urune sadik bir kompozisyon olmali.
-
-GORSEL YONLENDIRME:
-- Beyaz/notr setuplarda yumusak studyo isigi, gercekci temas golgesi ve temiz katalog duzeni kullan.
-- Premium koyu setuplarda kontrollu kontrast ve luks doku kullan ama urunu bozma.
-- Sosyal varyantlarda daha zengin atmosfer kurulabilir ama urun yine ayni urun olarak kalmali.
 
 Sadece gorsel uretime yonelik bir cevap dusun.`, company.Name, preset.Platform, referenceSummary, company.Name, company.Sector, categoryHint, company.TargetAudience, company.ToneOfVoice, brandColors, preset.Name, preset.Platform, preset.Width, preset.Height, preset.Background, preset.DesignNotes, inferSourceCreativeDirection(referenceSummary), inferPlatformCreativeRules(preset), inferVisualReferenceStyle(referenceSummary))
 }
 
 // BuildProductImageEditPrompt -- OpenAI gpt-image-1 image edit API icin
-// ChatGPT tarzi promosyon/pazarlama gorseli olusturma prompti.
-// Urun korunarak etrafina profesyonel e-ticaret ve sosyal medya tasarim ogeleri eklenir.
+// Önce system_prompts tablosundan "product_studio_edit" key ile çeker,
+// bulamazsa hard-coded fallback kullanır.
 func BuildProductImageEditPrompt(studio models.ProductImageStudio, preset ProductStudioPreset, referenceSummary string) string {
 	productHint := inferProductTypeHint(referenceSummary)
 	sceneDirective := inferSceneDirective(preset)
 	categoryCreativeHint := inferCategoryCreativeHint(referenceSummary)
+
+	// system_prompts tablosundan çekmeyi dene
+	data := map[string]interface{}{
+		"presetPlatform":      preset.Platform,
+		"productHint":         productHint,
+		"sceneDirective":      sceneDirective,
+		"categoryCreativeHint": categoryCreativeHint,
+		"presetWidth":         preset.Width,
+		"presetHeight":        preset.Height,
+	}
+
+	if rendered, err := GetRenderedPrompt("product_studio_edit", data); err == nil && rendered != "" {
+		log.Printf("✅ product_studio_edit prompt system_prompts tablosundan yüklendi")
+		return rendered
+	}
+
+	log.Printf("⚠️ product_studio_edit system_prompts'ta bulunamadı, hardcoded fallback kullanılıyor")
 
 	return fmt.Sprintf(`Bu gorseldeki urunu kullanarak %s platformu icin profesyonel bir e-ticaret / pazarlama gorseli olustur.
 
@@ -165,24 +220,15 @@ URUN: %s
 Urunu oldugu gibi koru — ayni paket, ayni renkler, ayni marka yazilari, ayni form. Urunu yeniden cizme veya degistirme.
 
 GOREV:
-Bu urun gorselini, tum buyuk e-ticaret platformlarinda (Trendyol, Hepsiburada, Amazon) ve sosyal medyada (Instagram, Facebook) paylasima hazir, profesyonel bir tanitim gorselina donustur.
+Bu urun gorselini, tum buyuk e-ticaret platformlarinda paylasima hazir, profesyonel bir tanitim gorselina donustur.
 
 %s
 
 TASARIM YONERGELERI:
 - Urunu sahnenin ana kahramani olarak konumla, one cikar
 - %s
-- Urunle uyumlu, kategoriye ozgu dekoratif ve destekleyici ögeler ekle (ornegin: ilgili malzemeler, dogal ortam parcalari, lifestyle hissi)
+- Urunle uyumlu, kategoriye ozgu dekoratif ve destekleyici ogeler ekle
 - Profesyonel studyo isigi, yumusak golgelendirme ve derinlik hissi kullan
-- Platform standartlarina uygun, satin alma istegi uyandiran bir kompozisyon kur
-- Gerekirse kisa bir tanitici baslik veya slogan urune uygun sekilde yerlestirilebilir
-- Gorsel, scroll sirasinda dikkati cekecek kadar cekici ve profesyonel olmali
-
-KESINLIKLE YAPMA:
-- Urunun kendisini degistirme, yeniden tasarlama veya farkli bir urun olusturma
-- Urunun uzerindeki mevcut marka/logo/yazi/gorsel ogeleri bozma
-- Urunun rengini, seklini veya oranlarini degistirme
-- Alakasiz veya kategoriye uymayan nesneler ekleme
 
 CIKTI: %dx%d piksel, profesyonel e-ticaret kalitesinde pazarlama gorseli`,
 		preset.Platform,
@@ -303,27 +349,30 @@ func DescribeProductImageReference(imageURL, category string) string {
 	}
 
 	imageBase64 := base64.StdEncoding.EncodeToString(imageBytes)
-	prompt := fmt.Sprintf(`Yuklenen urun fotografini bir gorsel uretim sistemi icin analiz et.
+
+	// system_prompts tablosundan çekmeyi dene
+	data := map[string]interface{}{
+		"categoryHint": category,
+	}
+	prompt, err := GetRenderedPrompt("product_image_reference_analyzer", data)
+	if err != nil || prompt == "" {
+		log.Printf("⚠️ product_image_reference_analyzer system_prompts'ta bulunamadı, hardcoded fallback")
+		prompt = fmt.Sprintf(`Yuklenen urun fotografini bir gorsel uretim sistemi icin analiz et.
+
+Kategori ipucu: %s
 
 Amac:
 - Gorseldeki urunu sadik sekilde tarif et ki ayni urun yeni sahnelerde korunabilsin.
 - Kategori ipucu ile gorsel celisirse gorseli esas al.
 - Paketli bir urunse ambalaj kimligini acikca belirt.
-- Kedi mamasi, kopek mamasi, kozmetik, ayakkabi, giyim gibi net bir urun tipi varsa bunu dogru soyle.
 
 Asagidaki noktalari kisaca anlat:
-- urun tipi
-- siluet ve form
-- gorunen materyal ve doku
-- baskin renkler
-- ambalaj veya urun uzerindeki korunmasi gereken kimlik detaylari
-- kamera acisi / kirpim
-- temizlenmesi gereken arka plan sorunlari
-- yeni gorsellerde korunmasi gereken ana ozellikler
-
-Kategori ipucu: %s
+- urun tipi, siluet ve form, gorunen materyal ve doku, baskin renkler, vb.
 
 Yanit sadece Turkce, tek paragraf, 70-140 kelime olsun.`, category)
+	} else {
+		log.Printf("✅ product_image_reference_analyzer prompt system_prompts tablosundan yüklendi")
+	}
 
 	if apiKey := os.Getenv("OPENAI_API_KEY"); apiKey != "" {
 		if summary, err := describeReferenceWithOpenAI(apiKey, imageBase64, prompt); err == nil && summary != "" {
@@ -468,6 +517,30 @@ func describeReferenceWithOpenAI(apiKey, imageBase64, prompt string) (string, er
 	return strings.TrimSpace(openAIResp.Choices[0].Message.Content), nil
 }
 
+func ensurePNG(imgData []byte) ([]byte, error) {
+	// Zaten PNG mi kontrol et (magic bytes: 0x89 PNG)
+	if len(imgData) > 4 && imgData[0] == 0x89 && imgData[1] == 0x50 && imgData[2] == 0x4E && imgData[3] == 0x47 {
+		return imgData, nil
+	}
+
+	// image.Decode tüm kayıtlı formatları (jpeg, png, webp) dener
+	img, format, err := image.Decode(bytes.NewReader(imgData))
+	if err != nil {
+		// Eğer standart decode başarısızsa, Content-Type ile belirlemeyi dene
+		contentType := http.DetectContentType(imgData)
+		log.Printf("⚠️ ensurePNG: image.Decode başarısız (format: %v), content-type: %s — hata: %v", format, contentType, err)
+		return nil, fmt.Errorf("gorsel decode edilemedi (content-type: %s): %v", contentType, err)
+	}
+
+	log.Printf("🔄 ensurePNG: %s formatı tespit edildi, PNG'ye dönüştürülüyor...", format)
+	var buf bytes.Buffer
+	if err := png.Encode(&buf, img); err != nil {
+		return nil, fmt.Errorf("png'ye donusturulemedi: %v", err)
+	}
+	log.Printf("✅ ensurePNG: %s → PNG dönüşümü başarılı (%d bytes → %d bytes)", format, len(imgData), buf.Len())
+	return buf.Bytes(), nil
+}
+
 func GenerateProductImageEdit(imageURL, prompt string, width, height int) (string, error) {
 	apiKey := strings.TrimSpace(os.Getenv("OPENAI_API_KEY"))
 	if apiKey == "" {
@@ -499,19 +572,20 @@ func GenerateProductImageEdit(imageURL, prompt string, width, height int) (strin
 		}
 	}
 
-	size := "1024x1024"
-	switch {
-	case height > width:
-		size = "1024x1536"
-	case width > height:
-		size = "1536x1024"
+	imageBytes, err = ensurePNG(imageBytes)
+	if err != nil {
+		return "", fmt.Errorf("gorsel formati PNG'ye donusturulemedi: %v", err)
 	}
 
+	// OpenAI image edit - Sadece dall-e-2 destekleniyor.
+	oaiModel := "dall-e-2"
+	size := "1024x1024" // DALL-E 2 sadece bu boyutları destekliyor (1024x1024, 512x512, 256x256)
+	
 	var body bytes.Buffer
 	writer := multipart.NewWriter(&body)
 
-	imgEditModel := GetAiModel("gpt_image_edit", "gpt-image-1")
-	if err := writer.WriteField("model", imgEditModel); err != nil {
+	log.Printf("🔧 OpenAI Image Edit model: %s, size: %s", oaiModel, size)
+	if err := writer.WriteField("model", oaiModel); err != nil {
 		return "", err
 	}
 	if err := writer.WriteField("prompt", prompt); err != nil {
@@ -645,7 +719,7 @@ func GenerateProductImageEdit(imageURL, prompt string, width, height int) (strin
 
 // GenerateProductImageWithSource -- Kaynak urun gorselini AI'ya gonderip
 // yeni pazarlama/promosyon gorseli ureten fonksiyon.
-// Oncelik: OpenAI gpt-image-1 (ChatGPT tarzi) → Gemini (son care)
+// system_prompts tablosundaki product_studio_edit provider'ina gore yonlendirir.
 func GenerateProductImageWithSource(imageURL, prompt string) (string, error) {
 	var imageBytes []byte
 	var imagePath string
@@ -670,26 +744,54 @@ func GenerateProductImageWithSource(imageURL, prompt string) (string, error) {
 		if err != nil {
 			return "", fmt.Errorf("kaynak gorsel okunamadi: %v", err)
 		}
-	}	// 1) OpenAI gpt-image-1 — ChatGPT ile ayni motor, kaynak gorseli gonderir
-	openaiKey := strings.TrimSpace(os.Getenv("OPENAI_API_KEY"))
-	if openaiKey != "" {
-		result, err := callOpenAIImageEditWithSource(openaiKey, imagePath, imageBytes, prompt)
-		if err == nil {
-			return result, nil
-		}
-		log.Printf("⚠️ OpenAI gpt-image-1 gorsel+prompt uretimi basarisiz: %v", err)
 	}
 
-	// 2) Gemini multimodal — son care fallback
+	// system_prompts'tan provider tercihini al
+	preferredProvider := GetAiProvider("gpt_image_edit", "openai")
+	log.Printf("🔧 Görsel üretim provider tercihi: %s", preferredProvider)
+
+	openaiKey := strings.TrimSpace(os.Getenv("OPENAI_API_KEY"))
 	geminiKey := strings.TrimSpace(os.Getenv("GEMINI_API_KEY"))
-	if geminiKey != "" {
-		imageBase64 := base64.StdEncoding.EncodeToString(imageBytes)
-		mimeType := detectMimeType(imagePath)
-		result, err := callGeminiImageWithSource(geminiKey, imageBase64, mimeType, prompt)
-		if err == nil {
-			return result, nil
+
+	// Provider tercihine göre sıralama
+	if preferredProvider == "gemini" {
+		// Önce Gemini dene, sonra OpenAI fallback
+		if geminiKey != "" {
+			imageBase64 := base64.StdEncoding.EncodeToString(imageBytes)
+			mimeType := detectMimeType(imagePath)
+			result, gErr := callGeminiImageWithSource(geminiKey, imageBase64, mimeType, prompt)
+			if gErr == nil {
+				log.Printf("✅ Gemini ile görsel üretildi (birincil provider)")
+				return result, nil
+			}
+			log.Printf("⚠️ Gemini gorsel uretimi basarisiz: %v — OpenAI fallback deneniyor", gErr)
 		}
-		log.Printf("⚠️ Gemini gorsel+prompt uretimi basarisiz: %v", err)
+		if openaiKey != "" {
+			result, oErr := callOpenAIImageEditWithSource(openaiKey, imagePath, imageBytes, prompt)
+			if oErr == nil {
+				return result, nil
+			}
+			log.Printf("⚠️ OpenAI fallback da basarisiz: %v", oErr)
+		}
+	} else {
+		// Önce OpenAI dene, sonra Gemini fallback
+		if openaiKey != "" {
+			result, oErr := callOpenAIImageEditWithSource(openaiKey, imagePath, imageBytes, prompt)
+			if oErr == nil {
+				log.Printf("✅ OpenAI ile görsel üretildi (birincil provider)")
+				return result, nil
+			}
+			log.Printf("⚠️ OpenAI gorsel uretimi basarisiz: %v — Gemini fallback deneniyor", oErr)
+		}
+		if geminiKey != "" {
+			imageBase64 := base64.StdEncoding.EncodeToString(imageBytes)
+			mimeType := detectMimeType(imagePath)
+			result, gErr := callGeminiImageWithSource(geminiKey, imageBase64, mimeType, prompt)
+			if gErr == nil {
+				return result, nil
+			}
+			log.Printf("⚠️ Gemini fallback da basarisiz: %v", gErr)
+		}
 	}
 
 	return "", fmt.Errorf("kaynak gorsel ile uretim basarisiz — hicbir provider calismadi")
@@ -714,11 +816,19 @@ func detectMimeType(filePath string) string {
 // kaynak urun gorselini multipart form ile gonderir.
 // Bu, ChatGPT'nin gorsel uretme motorunun aynisidir.
 func callOpenAIImageEditWithSource(apiKey, imagePath string, imageBytes []byte, prompt string) (string, error) {
+	// WebP/JPEG gibi formatları PNG'ye dönüştür (OpenAI sadece PNG kabul eder)
+	pngBytes, convErr := ensurePNG(imageBytes)
+	if convErr != nil {
+		return "", fmt.Errorf("gorsel PNG'ye donusturulemedi: %v", convErr)
+	}
+
 	var body bytes.Buffer
 	writer := multipart.NewWriter(&body)
 
-	imgEditModel := GetAiModel("gpt_image_edit", "gpt-image-1")
-	if err := writer.WriteField("model", imgEditModel); err != nil {
+	// OpenAI /images/edits endpoint'i SADECE dall-e-2 kabul eder
+	oaiModel := "dall-e-2"
+	log.Printf("🔧 OpenAI Image Edit model: %s", oaiModel)
+	if err := writer.WriteField("model", oaiModel); err != nil {
 		return "", err
 	}
 	if err := writer.WriteField("prompt", prompt); err != nil {
@@ -728,12 +838,12 @@ func callOpenAIImageEditWithSource(apiKey, imagePath string, imageBytes []byte, 
 		return "", err
 	}
 
-	// Kaynak gorseli multipart form ile gonder
-	part, err := writer.CreateFormFile("image", filepath.Base(imagePath))
+	// Kaynak gorseli multipart form ile gonder (artık her zaman PNG)
+	part, err := writer.CreateFormFile("image", "source_image.png")
 	if err != nil {
 		return "", err
 	}
-	if _, err := part.Write(imageBytes); err != nil {
+	if _, err := part.Write(pngBytes); err != nil {
 		return "", err
 	}
 

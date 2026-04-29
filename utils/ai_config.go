@@ -2,67 +2,58 @@ package utils
 
 import (
 	"log"
-	"sync"
-	"time"
-
-	"github.com/kullaniciadiniz/dio-panel-backend/database"
-	"github.com/kullaniciadiniz/dio-panel-backend/models"
 )
 
-var (
-	aiModelCache   = make(map[string]string)
-	aiModelCacheMu sync.RWMutex
-	lastCacheTime  time.Time
-)
-
-const cacheTTL = 1 * time.Minute
-
-// GetAiModel fetches the model name for a specific key.
-// Performs an in-memory caching with TTL to avoid hitting the database for every single generation request.
-func GetAiModel(key string, defaultModel string) string {
-	now := time.Now()
-
-	// TTL bazlı önbellekten oku
-	aiModelCacheMu.RLock()
-	val, exists := aiModelCache[key]
-	isFresh := now.Sub(lastCacheTime) < cacheTTL
-	aiModelCacheMu.RUnlock()
-
-	if exists && isFresh {
-		return val
-	}
-
-	// Veritabanından çek ("ai_model_settings" tablosu)
-	var setting models.AiModelSetting
-	// Veritabanı başlatılmamış olabilir (init sırasında vb.)
-	if database.DB == nil {
+// GetAiModel — artık system_prompts tablosundaki prompt_key'e bağlı
+// ai_model değerini döner. Bulamazsa defaultModel kullanılır.
+// prompt_key eşleştirme: "gpt_image_edit" → "product_studio_edit" gibi
+func GetAiModel(settingKey string, defaultModel string) string {
+	// settingKey → prompt_key eşleştirmesi
+	promptKey := mapSettingToPromptKey(settingKey)
+	if promptKey == "" {
 		return defaultModel
 	}
 
-	if err := database.DB.Where("setting_key = ? AND is_active = ?", key, true).First(&setting).Error; err != nil {
-		// Bulunamazsa varsayılanı dön ve kısa bir süre bunu da cache'le (sorgu yükünü azaltır)
-		cacheModelSetting(key, defaultModel)
-		return defaultModel
+	cfg := getPromptFromCache(promptKey)
+	if cfg.AIModel != "" {
+		log.Printf("🔧 Model '%s' prompt '%s' → %s", settingKey, promptKey, cfg.AIModel)
+		return cfg.AIModel
 	}
 
-	// Bulunursa değeri cache'le ve döndür
-	cacheModelSetting(key, setting.ModelName)
-	return setting.ModelName
+	return defaultModel
 }
 
-func cacheModelSetting(key, val string) {
-	aiModelCacheMu.Lock()
-	defer aiModelCacheMu.Unlock()
-	aiModelCache[key] = val
-	// Last cache time update'i (sadece yeni eklenince bile genel olarak listeyi taze kabul edelim)
-	lastCacheTime = time.Now()
+// GetAiProvider — system_prompts tablosundan prompt_key'e bağlı provider döner
+func GetAiProvider(settingKey string, defaultProvider string) string {
+	promptKey := mapSettingToPromptKey(settingKey)
+	if promptKey == "" {
+		return defaultProvider
+	}
+
+	cfg := getPromptFromCache(promptKey)
+	if cfg.AIProvider != "" {
+		return cfg.AIProvider
+	}
+
+	return defaultProvider
 }
 
-// ClearAiModelCache is used when an admin updates a setting in the admin panel to immediately reflect the change
+// mapSettingToPromptKey — eski ai_model_settings key'lerini
+// system_prompts prompt_key'lerine eşler
+func mapSettingToPromptKey(settingKey string) string {
+	mapping := map[string]string{
+		"gpt_image_edit":   "product_studio_edit",
+		"gpt_fast_general": "ai_idea_generator",
+		"gpt_smart_general": "creative_variant_generator",
+	}
+	if pk, ok := mapping[settingKey]; ok {
+		return pk
+	}
+	return ""
+}
+
+// ClearAiModelCache is used when an admin updates a setting
 func ClearAiModelCache() {
-	aiModelCacheMu.Lock()
-	defer aiModelCacheMu.Unlock()
-	aiModelCache = make(map[string]string)
-	lastCacheTime = time.Time{}
-	log.Println("🔄 AI Model Cache temizlendi")
+	// Artık prompt cache üzerinden yönetiliyor
+	log.Println("🔄 AI Model Cache temizlendi (prompt cache)")
 }

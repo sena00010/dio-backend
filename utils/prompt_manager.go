@@ -3,6 +3,7 @@ package utils
 import (
 	"bytes"
 	"log"
+	"strings"
 	"sync"
 	"text/template"
 	"time"
@@ -11,29 +12,33 @@ import (
 	"github.com/kullaniciadiniz/dio-panel-backend/models"
 )
 
+// PromptConfig — prompt içeriği + hangi model/provider ile çalışacağı
+type PromptConfig struct {
+	Content    string
+	AIProvider string // "openai" veya "gemini"
+	AIModel    string // "gpt-4o-mini", "dall-e-2", vb.
+}
+
 var (
-	promptCache      = make(map[string]string)
+	promptCache      = make(map[string]PromptConfig)
 	promptCacheMutex sync.RWMutex
 	promptCacheTTLs  = make(map[string]time.Time)
 )
 
 const promptCacheDuration = 1 * time.Minute
 
-// formatMap is a helper function to format maps for text/template if needed (though map keys are accessed via .Key naturally)
-// Can be extended with custom template functions later
 var funcMap = template.FuncMap{}
 
 // GetRenderedPrompt fetches the prompt content from cache/db and renders it using text/template
 func GetRenderedPrompt(promptKey string, data map[string]interface{}) (string, error) {
-	content := getPromptContentFromCache(promptKey)
+	cfg := getPromptFromCache(promptKey)
 
-	// Fallback to error message if missing
-	if content == "" {
+	if cfg.Content == "" {
 		log.Printf("⚠️ Missing prompt definition for key: %s (Check DB)", promptKey)
-		return "", nil // or return error, but "" avoids crash
+		return "", nil
 	}
 
-	tmpl, err := template.New(promptKey).Funcs(funcMap).Parse(content)
+	tmpl, err := template.New(promptKey).Funcs(funcMap).Parse(cfg.Content)
 	if err != nil {
 		log.Printf("❌ Failed to parse template for prompt %s: %v", promptKey, err)
 		return "", err
@@ -48,31 +53,61 @@ func GetRenderedPrompt(promptKey string, data map[string]interface{}) (string, e
 	return buf.String(), nil
 }
 
-func getPromptContentFromCache(promptKey string) string {
+// GetPromptWithModel — prompt içeriğini render edip, model bilgisini de döner.
+// Dönen PromptConfig.AIProvider/AIModel boşsa → ai_model_settings'ten fallback kullan.
+func GetPromptWithModel(promptKey string, data map[string]interface{}) (PromptConfig, error) {
+	cfg := getPromptFromCache(promptKey)
+
+	if cfg.Content == "" {
+		return PromptConfig{}, nil
+	}
+
+	tmpl, err := template.New(promptKey).Funcs(funcMap).Parse(cfg.Content)
+	if err != nil {
+		return PromptConfig{}, err
+	}
+
+	var buf bytes.Buffer
+	if err := tmpl.Execute(&buf, data); err != nil {
+		return PromptConfig{}, err
+	}
+
+	return PromptConfig{
+		Content:    buf.String(),
+		AIProvider: cfg.AIProvider,
+		AIModel:    cfg.AIModel,
+	}, nil
+}
+
+func getPromptFromCache(promptKey string) PromptConfig {
 	promptCacheMutex.RLock()
-	cachedContent, found := promptCache[promptKey]
+	cachedCfg, found := promptCache[promptKey]
 	expiry, hasExpiry := promptCacheTTLs[promptKey]
 	promptCacheMutex.RUnlock()
 
-	// Cache valid check
 	if found && hasExpiry && time.Now().Before(expiry) {
-		return cachedContent
+		return cachedCfg
 	}
 
-	// Not in cache or expired, fetch from DB
+	// DB'den çek
 	var prompt models.SystemPrompt
 	err := database.DB.Where("prompt_key = ?", promptKey).First(&prompt).Error
 	if err != nil {
-		return ""
+		return PromptConfig{}
 	}
 
-	// Refresh cache
+	cfg := PromptConfig{
+		Content:    prompt.Content,
+		AIProvider: strings.TrimSpace(prompt.AiProvider),
+		AIModel:    strings.TrimSpace(prompt.AiModel),
+	}
+
 	promptCacheMutex.Lock()
-	promptCache[promptKey] = prompt.Content
+	promptCache[promptKey] = cfg
 	promptCacheTTLs[promptKey] = time.Now().Add(promptCacheDuration)
 	promptCacheMutex.Unlock()
 
-	return prompt.Content
+	return cfg
 }
 
 // ClearPromptCache can be called from admin routes when a prompt is explicitly updated

@@ -106,27 +106,52 @@ func GenerateIdeas(topic, platform, campaignType string, count int, companyConte
 
 	resultText, err := GenerateWithPrompt("content_idea_generator", dataMap)
 	if err != nil {
-		return nil, fmt.Errorf("AI fikir üretim hatası: %v", err)
+		// DB'deki prompt başarısız olursa, hardcoded fallback prompt'u dene
+		log.Printf("⚠️ DB prompt başarısız, hardcoded fallback deneniyor: %v", err)
+		fallbackPrompt := buildPrompt(topic, platform, campaignType, count, companyContext)
+		resultText, err = callOpenAITextDirect(fallbackPrompt)
+		if err != nil {
+			return nil, fmt.Errorf("AI fikir üretim hatası (fallback da başarısız): %v", err)
+		}
 	}
 
-	// Clean Markdown formatting commonly returned by AI
-	if strings.HasPrefix(resultText, "```json") {
-		resultText = strings.TrimPrefix(resultText, "```json")
-		resultText = strings.TrimSuffix(resultText, "```")
-	} else if strings.HasPrefix(resultText, "```") {
-		resultText = strings.TrimPrefix(resultText, "```")
-		resultText = strings.TrimSuffix(resultText, "```")
+	log.Printf("🔍 AI Ham Yanıt (ilk 500 karakter): %.500s", resultText)
+
+	// Clean Markdown formatting commonly returned by AI — daha kapsamlı temizlik
+	// ```json ... ``` bloğu içinden çıkart (başta, sonda veya ortada olabilir)
+	if idx := strings.Index(resultText, "```json"); idx >= 0 {
+		resultText = resultText[idx+7:]
+		if endIdx := strings.LastIndex(resultText, "```"); endIdx >= 0 {
+			resultText = resultText[:endIdx]
+		}
+	} else if idx := strings.Index(resultText, "```"); idx >= 0 {
+		resultText = resultText[idx+3:]
+		if endIdx := strings.LastIndex(resultText, "```"); endIdx >= 0 {
+			resultText = resultText[:endIdx]
+		}
 	}
 	resultText = strings.TrimSpace(resultText)
 
+	// AI'ların çok sık yaptığı geçersiz JSON'u düzelt (trailing commas, vb.)
+	resultText = fixAIJSON(resultText)
+
 	var results []IdeaResult
 	if err := json.Unmarshal([]byte(resultText), &results); err != nil {
+		log.Printf("⚠️ JSON dizi parse başarısız: %v — tekil obje deneniyor", err)
 		// AI bazen tek fikir üretince dizi yerine tekil obje döner — onu da yakala
 		var single IdeaResult
 		if err2 := json.Unmarshal([]byte(resultText), &single); err2 != nil {
+			log.Printf("❌ JSON tekil parse de başarısız: %v", err2)
+			log.Printf("❌ Parse edilemeyen AI yanıtı: %s", resultText)
 			return nil, fmt.Errorf("JSON ayrıştırma hatası: %v", err)
 		}
 		results = []IdeaResult{single}
+	}
+
+	// Sonuçları logla
+	for i, r := range results {
+		log.Printf("📝 Fikir %d: title=%q, desc_len=%d, hashtags=%q, img_prompt_len=%d",
+			i+1, r.Title, len(r.Description), r.Hashtags, len(r.ImageSuggestionPrompt))
 	}
 
 	// Post-process: her fikrin design_layers'ında çakışma düzelt
@@ -135,6 +160,62 @@ func GenerateIdeas(topic, platform, campaignType string, count int, companyConte
 	}
 
 	return results, nil
+}
+
+// fixAIJSON — AI modellerinin sıkça yaptığı JSON hatalarını düzeltir
+// 1. Trailing comma: ,} veya ,]
+// 2. Truncated JSON: yanıt yarıda kesilmişse, son tamamlanan objeye kadar al
+func fixAIJSON(s string) string {
+	// 1. Trailing commas düzelt
+	trailingCommaArray := regexp.MustCompile(`,\s*\]`)
+	s = trailingCommaArray.ReplaceAllString(s, "]")
+
+	trailingCommaObject := regexp.MustCompile(`,\s*\}`)
+	s = trailingCommaObject.ReplaceAllString(s, "}")
+
+	// 2. JSON geçerli mi kontrol et
+	s = strings.TrimSpace(s)
+	if json.Valid([]byte(s)) {
+		return s
+	}
+
+	// 3. Yarıda kesilmiş JSON'u kurtarmaya çalış
+	// Eğer bir dizi ise, son tamamlanan }] noktasını bul
+	if strings.HasPrefix(s, "[") {
+		// Son geçerli "}," veya "}]" noktasını bul
+		lastValid := -1
+		for i := len(s) - 1; i >= 0; i-- {
+			if s[i] == '}' {
+				// Bu noktadan sonra "]" ekleyerek geçerli JSON olur mu?
+				candidate := s[:i+1] + "]"
+				if json.Valid([]byte(candidate)) {
+					lastValid = i
+					break
+				}
+			}
+		}
+		if lastValid >= 0 {
+			repaired := s[:lastValid+1] + "]"
+			log.Printf("🔧 fixAIJSON: Yarıda kalan JSON kurtarıldı (orijinal %d → düzeltilmiş %d karakter)", len(s), len(repaired))
+			return repaired
+		}
+	}
+
+	return s
+}
+
+// callOpenAITextDirect — DB prompt sistemi bypass edip doğrudan OpenAI'a istek atar (fallback)
+func callOpenAITextDirect(prompt string) (string, error) {
+	apiKey := os.Getenv("OPENAI_API_KEY")
+	if apiKey == "" {
+		// Gemini'yi dene
+		geminiKey := os.Getenv("GEMINI_API_KEY")
+		if geminiKey != "" {
+			return callGeminiText("gemini-2.5-flash", prompt)
+		}
+		return "", fmt.Errorf("ne OPENAI_API_KEY ne GEMINI_API_KEY bulunamadı")
+	}
+	return callOpenAIText("gpt-4o-mini", prompt)
 }
 
 // ──────────────────────────────────────────────
@@ -1286,11 +1367,20 @@ func generateImageWithFallback(prompt, style string) (string, error) {
 			}
 			log.Printf("⚠️ BFL Model '%s' başarısız, bir sonraki modele geçiliyor: %v", model, err)
 		}
-		log.Printf("⚠️ Tüm BFL (Flux) modelleri başarısız oldu. Gemini/DALL-E'ye geçiliyor.")
+		log.Printf("⚠️ Tüm BFL (Flux) modelleri başarısız oldu. Imagen 4'e geçiliyor.")
 	}
 
-	// 2) Gemini Flash Image dene
+	// 2) Google Imagen 4 — En yüksek kaliteli fotorealizm
 	geminiKey := os.Getenv("GEMINI_API_KEY")
+	if geminiKey != "" {
+		result, err := callImagen4(geminiKey, prompt, style)
+		if err == nil {
+			return result, nil
+		}
+		log.Printf("⚠️ Imagen 4 başarısız, Gemini Flash Image'a geçiliyor: %v", err)
+	}
+
+	// 3) Gemini Flash Image (fallback)
 	if geminiKey != "" {
 		result, err := callGeminiImage(geminiKey, prompt, style)
 		if err == nil {
@@ -1299,7 +1389,7 @@ func generateImageWithFallback(prompt, style string) (string, error) {
 		log.Printf("⚠️ Gemini görsel üretme başarısız, DALL-E'ye geçiliyor: %v", err)
 	}
 
-	// 3) DALL-E 3 fallback
+	// 4) DALL-E 3 fallback
 	openaiKey := os.Getenv("OPENAI_API_KEY")
 	if openaiKey != "" {
 		result, err := callDALLE(openaiKey, prompt, style)
@@ -1307,7 +1397,7 @@ func generateImageWithFallback(prompt, style string) (string, error) {
 			return result, nil
 		}
 		log.Printf("❌ DALL-E de başarısız oldu: %v", err)
-		return "", fmt.Errorf("görsel üretme başarısız (BFL + Gemini + DALL-E): %v", err)
+		return "", fmt.Errorf("görsel üretme başarısız (BFL + Imagen4 + Gemini + DALL-E): %v", err)
 	}
 
 	return "", fmt.Errorf("görsel üretme için API anahtarı bulunamadı (BFL_API_KEY, GEMINI_API_KEY veya OPENAI_API_KEY gerekli)")
@@ -1408,7 +1498,85 @@ func callBFL(apiKey, model, prompt string) (string, error) {
 }
 
 // ──────────────────────────────────────────────
-// Provider 1: Gemini Flash Image (generateContent)
+// Provider 1: Google Imagen 4 (predict endpoint)
+// ──────────────────────────────────────────────
+
+func callImagen4(apiKey, prompt, style string) (string, error) {
+	// Aspect ratio: e-ticaret için 1:1, sosyal medya story için 9:16
+	aspectRatio := "1:1"
+
+	reqBody := map[string]interface{}{
+		"instances": []map[string]interface{}{
+			{"prompt": prompt},
+		},
+		"parameters": map[string]interface{}{
+			"sampleCount":      1,
+			"aspectRatio":      aspectRatio,
+			"personGeneration": "allow_adult",
+		},
+	}
+
+	bodyBytes, err := json.Marshal(reqBody)
+	if err != nil {
+		return "", fmt.Errorf("request marshal hatası: %v", err)
+	}
+
+	url := fmt.Sprintf("https://generativelanguage.googleapis.com/v1beta/models/imagen-4.0-generate-001:predict?key=%s", apiKey)
+
+	req, err := http.NewRequest("POST", url, bytes.NewBuffer(bodyBytes))
+	if err != nil {
+		return "", fmt.Errorf("request oluşturma hatası: %v", err)
+	}
+	req.Header.Set("Content-Type", "application/json")
+
+	client := &http.Client{Timeout: 120 * time.Second}
+	resp, err := client.Do(req)
+	if err != nil {
+		return "", fmt.Errorf("Imagen 4 API isteği başarısız: %v", err)
+	}
+	defer resp.Body.Close()
+
+	respBody, err := io.ReadAll(resp.Body)
+	if err != nil {
+		return "", fmt.Errorf("response okuma hatası: %v", err)
+	}
+
+	if resp.StatusCode != http.StatusOK {
+		return "", fmt.Errorf("Imagen 4 API hata %d: %s", resp.StatusCode, string(respBody))
+	}
+
+	// Imagen 4 response format: {"predictions": [{"bytesBase64Encoded": "...", "mimeType": "image/png"}]}
+	var imagenResp struct {
+		Predictions []struct {
+			BytesBase64Encoded string `json:"bytesBase64Encoded"`
+			MimeType           string `json:"mimeType"`
+		} `json:"predictions"`
+	}
+
+	if err := json.Unmarshal(respBody, &imagenResp); err != nil {
+		return "", fmt.Errorf("response parse hatası: %v", err)
+	}
+
+	if len(imagenResp.Predictions) == 0 || imagenResp.Predictions[0].BytesBase64Encoded == "" {
+		return "", fmt.Errorf("Imagen 4 boş yanıt döndü")
+	}
+
+	imageBytes, err := base64DecodeImage(imagenResp.Predictions[0].BytesBase64Encoded)
+	if err != nil {
+		return "", fmt.Errorf("base64 decode hatası: %v", err)
+	}
+
+	localURL, err := saveImageBytes(imageBytes)
+	if err != nil {
+		return "", fmt.Errorf("görsel kaydetme hatası: %v", err)
+	}
+
+	log.Printf("✅ Görsel üretildi (stil: %s, motor: Google Imagen 4)", style)
+	return localURL, nil
+}
+
+// ──────────────────────────────────────────────
+// Provider 2: Gemini Flash Image (generateContent)
 // ──────────────────────────────────────────────
 
 func callGeminiImage(apiKey, prompt, style string) (string, error) {

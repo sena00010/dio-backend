@@ -408,7 +408,8 @@ func GenerateProductImageStudio(c *gin.Context) {
 	}
 
 	var req struct {
-		Force bool `json:"force"`
+		Force   bool   `json:"force"`
+		BgStyle string `json:"bg_style"`
 	}
 	_ = c.ShouldBindJSON(&req)
 
@@ -418,6 +419,23 @@ func GenerateProductImageStudio(c *gin.Context) {
 	}
 
 	presets := utils.DefaultProductStudioPresets()
+
+	// Kullanıcı belirli bir arka plan stili seçtiyse, TÜM presetlerin arka planını bununla değiştir
+	if req.BgStyle != "" {
+		bgMap := map[string]string{
+			"beyaz": "Beyaz Studyo",
+			"krem":  "Krem Notr",
+			"koyu":  "Koyu Premium",
+			"soft":  "Lavanta Soft",
+		}
+		if bgLabel, ok := bgMap[req.BgStyle]; ok {
+			log.Printf("🎨 Kullanıcı arka plan stili seçti: %s → tüm presetlere uygulanıyor", bgLabel)
+			for i := range presets {
+				presets[i].Background = bgLabel
+			}
+		}
+	}
+
 	if len(studio.Variants) == 0 {
 		for i, preset := range presets {
 			variant := models.ProductImageVariant{
