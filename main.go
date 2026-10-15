@@ -115,6 +115,9 @@ func main() {
 		api.PATCH("/protected/update-idea", handlers.UpdateIdea)
 		api.POST("/protected/regenerate-idea", handlers.RegenerateIdea)
 		api.POST("/protected/approve-idea", handlers.ApproveIdea)
+		api.GET("/protected/special-days", handlers.GetSpecialDays)
+		api.POST("/protected/content-plan", handlers.CreateContentPlan)
+		api.GET("/protected/content-plan/status", handlers.GetContentPlanStatus)
 
 		// Post & Görsel Stüdyosu
 		api.GET("/protected/posts", handlers.ListPosts)
@@ -347,4 +350,4 @@ func main() {
 	if err := r.Run(":" + port); err != nil {
 		log.Fatalf("❌ Sunucu başlatılamadı: %v", err)
 	}
-}
+}

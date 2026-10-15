@@ -2,9 +2,11 @@ package utils
 
 import (
 	"bytes"
+	"encoding/json"
 	"image"
 	"image/png"
 	"testing"
+	"time"
 )
 
 func TestCropToAspect(t *testing.T) {
@@ -42,5 +44,40 @@ func TestPlatformAspectRatio(t *testing.T) {
 		if got := PlatformAspectRatio(p); got != want {
 			t.Errorf("%q: got %s want %s", p, got, want)
 		}
+	}
+}
+
+func TestSpecialDaysInMonth(t *testing.T) {
+	loc := time.UTC
+	may := SpecialDaysInMonth(2026, time.May, loc)
+	want := map[string]int{"Anneler Günü": 10, "Kurban Bayramı": 27, "19 Mayıs Atatürk'ü Anma, Gençlik ve Spor Bayramı": 19}
+	got := map[string]int{}
+	for _, d := range may {
+		got[d.Name] = d.Date.Day()
+	}
+	for name, dayNum := range want {
+		if got[name] != dayNum {
+			t.Errorf("%s: got %d want %d", name, got[name], dayNum)
+		}
+	}
+	for _, d := range SpecialDaysInMonth(2026, time.November, loc) {
+		if d.Name == "Black Friday" && d.Date.Day() != 27 {
+			t.Errorf("Black Friday 2026: got %d want 27", d.Date.Day())
+		}
+	}
+	if june := SpecialDaysInMonth(2026, time.June, loc); len(june) != 1 || june[0].Date.Day() != 21 {
+		t.Errorf("Babalar Günü 2026 should be 21 June, got %+v", june)
+	}
+}
+
+func TestFixAIJSONRawNewlines(t *testing.T) {
+	in := "[{\"title\":\"A\",\"description\":\"Kanca?\n\nDeğer paragrafı.\n\nDM'den yaz!\"},{\"title\":\"B\",\"description\":\"x\"}]"
+	out := fixAIJSON(in)
+	var res []IdeaResult
+	if err := json.Unmarshal([]byte(out), &res); err != nil || len(res) != 2 {
+		t.Fatalf("parse failed: %v (%d)", err, len(res))
+	}
+	if res[0].Description != "Kanca?\n\nDeğer paragrafı.\n\nDM'den yaz!" {
+		t.Errorf("description changed: %q", res[0].Description)
 	}
 }

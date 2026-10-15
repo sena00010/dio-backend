@@ -307,6 +307,11 @@ func ApproveIdea(c *gin.Context) {
 	idea.IsSelected = true
 	database.DB.Save(&idea)
 
+	// Fikir takvimde planlıysa (aylık plan), takvim kaydını yeni posta bağla — mükerrer takvim olmasın
+	database.DB.Model(&models.AiSchedule{}).
+		Where("idea_id = ? AND company_id = ? AND (post_id IS NULL OR post_id = 0)", idea.ID, idea.CompanyID).
+		Update("post_id", post.ID)
+
 	log.Printf("✅ Fikir onaylandı ve post oluşturuldu: idea_id=%d → post_id=%d", idea.ID, post.ID)
 	c.JSON(http.StatusCreated, gin.H{
 		"message": "Fikir onaylandı ve post olarak kaydedildi",
@@ -563,7 +568,9 @@ const captionQualityRules = `
   2) Then 2-4 short value paragraphs (1-2 sentences each), separated by a blank line ("\n\n"). Concrete benefits, no filler.
   3) End with ONE clear call-to-action (e.g. "Detaylar için DM'den yaz", "Linke tıkla", "Kaydet, sonra lazım olacak").
   4) Max 2-3 relevant emojis in total. No hashtags inside the description.
-- "hashtags": 6-10 hashtags, mixing niche and mid-size ones relevant to the brand, sector and location; no generic ones like #love #instagood.
+- "hashtags": MUST contain between 6 and 10 hashtags (count them; fewer than 6 is invalid), mixing niche and mid-size ones relevant to the brand, sector and location; no generic ones like #love #instagood.
+- Never invent customer names, quotes, reviews, ratings, statistics or awards. If social proof needs a real testimonial, write the placeholder "[Buraya gerçek bir müşteri yorumu ekleyin]".
+- Deliver real substance: if the post promises tips, a recipe, steps or facts, write them out concretely in the caption.
 - Write in correct, natural Turkish with proper characters (ç, ğ, ı, İ, ö, ş, ü) unless another content language is specified. Never ASCII-fy Turkish words.
 - Ideas in one batch must use different angles (education, social proof, behind the scenes, engagement question, offer); at most one direct sales idea.
 

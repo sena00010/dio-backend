@@ -169,6 +169,10 @@ func ListSchedules(c *gin.Context) {
 		Status      string `json:"status"`
 		ScheduledAt string `json:"scheduled_at"`
 		SourceType  string `json:"source_type"` // "post" or "idea"
+		Pillar      string `json:"content_pillar,omitempty"`
+		SpecialDay  string `json:"special_day,omitempty"`
+		// Fikir kaynaklı planlarda sihirbazın görsel adımını açmak için tam fikir
+		Idea *models.AiIdea `json:"idea,omitempty"`
 	}
 
 	var result []ScheduleResponse
@@ -195,6 +199,10 @@ func ListSchedules(c *gin.Context) {
 			r.ImageURL = s.Idea.ImageURL
 			r.PostStatus = "idea"
 			r.SourceType = "idea"
+			r.Pillar = s.Idea.ContentPillar
+			r.SpecialDay = s.Idea.SpecialDay
+			idea := s.Idea
+			r.Idea = &idea
 		}
 
 		result = append(result, r)

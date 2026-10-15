@@ -62,6 +62,12 @@ func GenerateWithPrompt(promptKey string, data map[string]interface{}) (string, 
 // Dahili Sağlayıcı İstek Formatları
 // ─────────────────────────────────────────────────────────────
 
+// isReasoningModel — gpt-5 ailesi ve o-serisi (farklı parametre seti kullanır)
+func isReasoningModel(model string) bool {
+	m := strings.ToLower(model)
+	return strings.HasPrefix(m, "gpt-5") || strings.HasPrefix(m, "o1") || strings.HasPrefix(m, "o3") || strings.HasPrefix(m, "o4")
+}
+
 func callOpenAIText(model string, prompt string) (string, error) {
 	apiKey := os.Getenv("OPENAI_API_KEY")
 	if apiKey == "" {
@@ -76,13 +82,22 @@ func callOpenAIText(model string, prompt string) (string, error) {
 			{"role": "user", "content": prompt},
 		},
 	}
+	// gpt-5 / o-serisi akıl yürütme modelleri temperature ve max_tokens kabul etmez
+	if isReasoningModel(model) {
+		delete(reqBody, "temperature")
+		delete(reqBody, "max_tokens")
+		reqBody["max_completion_tokens"] = 16000
+		if !strings.Contains(strings.ToLower(model), "chat") {
+			reqBody["reasoning_effort"] = "low"
+		}
+	}
 
 	bodyBytes, _ := json.Marshal(reqBody)
 	httpReq, _ := http.NewRequest("POST", "https://api.openai.com/v1/chat/completions", bytes.NewBuffer(bodyBytes))
 	httpReq.Header.Set("Content-Type", "application/json")
 	httpReq.Header.Set("Authorization", "Bearer "+apiKey)
 
-	client := &http.Client{Timeout: 90 * time.Second}
+	client := &http.Client{Timeout: 150 * time.Second}
 	resp, err := client.Do(httpReq)
 	if err != nil {
 		return "", err

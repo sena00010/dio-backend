@@ -179,6 +179,13 @@ func fixAIJSON(s string) string {
 		return s
 	}
 
+	// 2b. Metin içindeki ham satır sonları (paragraflı caption) JSON'u bozar — kaçışla
+	if escaped := escapeControlCharsInStrings(s); json.Valid([]byte(escaped)) {
+		return escaped
+	} else {
+		s = escaped
+	}
+
 	// 3. Yarıda kesilmiş JSON'u kurtarmaya çalış
 	// Eğer bir dizi ise, son tamamlanan }] noktasını bul
 	if strings.HasPrefix(s, "[") {
@@ -202,6 +209,37 @@ func fixAIJSON(s string) string {
 	}
 
 	return s
+}
+
+// escapeControlCharsInStrings — JSON string değerlerindeki ham \n, \r, \t karakterlerini kaçışlı hale getirir
+func escapeControlCharsInStrings(s string) string {
+	var b strings.Builder
+	b.Grow(len(s) + 32)
+	inString, escaped := false, false
+	for _, r := range s {
+		if inString {
+			switch {
+			case escaped:
+				escaped = false
+			case r == '\\':
+				escaped = true
+			case r == '"':
+				inString = false
+			case r == '\n':
+				b.WriteString(`\n`)
+				continue
+			case r == '\r':
+				continue
+			case r == '\t':
+				b.WriteString(`\t`)
+				continue
+			}
+		} else if r == '"' {
+			inString = true
+		}
+		b.WriteRune(r)
+	}
+	return b.String()
 }
 
 // callOpenAITextDirect — DB prompt sistemi bypass edip doğrudan OpenAI'a istek atar (fallback)

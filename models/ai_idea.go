@@ -19,6 +19,8 @@ type AiIdea struct {
 	DesignLayers          string    `gorm:"type:text" json:"design_layers"`
 	ImageURL              string    `gorm:"size:500" json:"image_url"`
 	IsSelected            bool      `gorm:"default:false" json:"is_selected"`
+	ContentPillar         string    `gorm:"size:50" json:"content_pillar"` // aylık plan içerik türü (egitim, urun, ozel_gun...)
+	SpecialDay            string    `gorm:"size:120" json:"special_day"`   // aylık planda bağlı olduğu özel gün
 	CreatedAt             time.Time `json:"created_at"`
 	UpdatedAt             time.Time `json:"updated_at"`
 }
