@@ -9,6 +9,7 @@ import (
 	"github.com/gin-gonic/gin"
 	"github.com/kullaniciadiniz/dio-panel-backend/database"
 	"github.com/kullaniciadiniz/dio-panel-backend/models"
+	"github.com/kullaniciadiniz/dio-panel-backend/utils"
 )
 
 // ──────────────────────────────────────────────
@@ -56,10 +57,7 @@ func GetPendingContents(c *gin.Context) {
 		Find(&posts)
 
 	for _, post := range posts {
-		format := "9:16 Story"
-		if post.Platform == "LinkedIn" || post.Platform == "Facebook" {
-			format = "1:1 Feed"
-		}
+		format := utils.PlatformAspectRatio(post.Platform) + " Feed"
 		items = append(items, PendingItem{
 			ID:            post.ID,
 			Type:          "post",
@@ -92,10 +90,7 @@ func GetPendingContents(c *gin.Context) {
 		if postTitles[idea.GeneratedTitle] {
 			continue
 		}
-		format := "9:16 Story"
-		if idea.Platform == "LinkedIn" || idea.Platform == "Facebook" {
-			format = "1:1 Feed"
-		}
+		format := utils.PlatformAspectRatio(idea.Platform) + " Feed"
 		items = append(items, PendingItem{
 			ID:            idea.ID,
 			Type:          "idea",
