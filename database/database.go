@@ -35,6 +35,7 @@ func Connect() {
 		&models.CompanyCompetitor{},
 		&models.AiSchedule{},
 		&models.Post{},
+		&models.PostSlide{},
 		&models.AiIdea{},
 		&models.TeamMember{},
 		&models.SeoIntegration{},

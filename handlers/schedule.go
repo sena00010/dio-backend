@@ -58,6 +58,9 @@ func GetPendingContents(c *gin.Context) {
 
 	for _, post := range posts {
 		format := utils.PlatformAspectRatio(post.Platform) + " Feed"
+		if post.Format == "carousel" {
+			format = "4:5 Carousel"
+		}
 		items = append(items, PendingItem{
 			ID:            post.ID,
 			Type:          "post",

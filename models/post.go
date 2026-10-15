@@ -18,6 +18,7 @@ type Post struct {
 	DesignLayers    string    `gorm:"type:text" json:"design_layers,omitempty"`
 	LogoPosition    string    `gorm:"type:text" json:"logo_position,omitempty"`
 	Status          string    `gorm:"size:20;default:'draft'" json:"status"`
+	Format          string    `gorm:"size:20;default:'single'" json:"format"` // single | carousel
 	CreatedAt time.Time `json:"created_at"`
 	UpdatedAt time.Time `json:"updated_at"`
 }
