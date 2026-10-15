@@ -82,8 +82,11 @@ func GenerateIdeas(c *gin.Context) {
 	for _, idea := range ideas {
 		// JSON serialize
 		contentItemsJSON, _ := json.Marshal(idea.ContentItems)
-		// design_layers artık kullanılmıyor — metin görselin içinde üretiliyor
-		designLayersJSON := []byte("[]")
+		// Görseller yazısız üretilir; başlık/CTA stüdyoda bu katmanlarla marka fontuyla basılır
+		designLayersJSON, _ := json.Marshal(idea.DesignLayers)
+		if len(idea.DesignLayers) == 0 {
+			designLayersJSON = []byte("[]")
+		}
 
 		aiIdea := models.AiIdea{
 			CompanyID:             req.CompanyID,
@@ -450,10 +453,10 @@ func GeneratePostImage(c *gin.Context) {
 		return
 	}
 
-	// ── AI Vision katman üretimi devre dışı ──
-	// Artık tüm metin ve logolar görselin içinde AI tarafından üretiliyor.
-	// Kullanıcı isterse stüdyoda kendi katmanlarını manuel ekleyebilir.
-	post.DesignLayers = "[]"
+	// Görsel yazısız üretildiği için fikirden gelen tasarım katmanları korunur
+	if post.DesignLayers == "" {
+		post.DesignLayers = "[]"
+	}
 
 	// ── AI Vision ile optimal logo pozisyonunu analiz et ──
 	logoPos, logoErr := utils.AnalyzeImageForLogoPosition(localURL, company.Name)
@@ -545,5 +548,26 @@ func buildCompanyContext(company models.Company) string {
 		ctx += fmt.Sprintf("\n\n[SYSTEM INSTRUCTION — FORBIDDEN WORDS]: The following words/phrases are STRICTLY BANNED. NEVER use any of these in any field: %s. If you accidentally include any of these, the output will be rejected.", company.ForbiddenWords)
 	}
 
+	ctx += captionQualityRules
+
 	return ctx
 }
+
+// captionQualityRules — gerçek sosyal medya kalitesinde caption ve tasarım katmanı kuralları.
+// DB'deki promptun uzunluk kurallarını geçersiz kılar.
+const captionQualityRules = `
+
+[SYSTEM INSTRUCTION — CAPTION QUALITY (overrides any earlier length rule)]:
+- "description" is a ready-to-post caption written like a top social media manager:
+  1) First line is a scroll-stopping HOOK (max 12 words): a question, bold claim, number or pain point.
+  2) Then 2-4 short value paragraphs (1-2 sentences each), separated by a blank line ("\n\n"). Concrete benefits, no filler.
+  3) End with ONE clear call-to-action (e.g. "Detaylar için DM'den yaz", "Linke tıkla", "Kaydet, sonra lazım olacak").
+  4) Max 2-3 relevant emojis in total. No hashtags inside the description.
+- "hashtags": 6-10 hashtags, mixing niche and mid-size ones relevant to the brand, sector and location; no generic ones like #love #instagood.
+- Write in correct, natural Turkish with proper characters (ç, ğ, ı, İ, ö, ş, ü) unless another content language is specified. Never ASCII-fy Turkish words.
+- Ideas in one batch must use different angles (education, social proof, behind the scenes, engagement question, offer); at most one direct sales idea.
+
+[SYSTEM INSTRUCTION — DESIGN LAYERS]:
+- The image is generated WITHOUT any text; design_layers are the ONLY text on the visual, so they must be strong.
+- Always include a "headline" layer (max 6 words, punchy) and a "cta" layer (max 4 words, e.g. "Hemen Keşfet", "DM'den Yaz"). A short "description" layer is optional.
+- Keep all layers inside the safe area: x between 6 and 94, y between 8 and 82 (bottom area is reserved for the logo).`

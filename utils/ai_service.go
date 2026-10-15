@@ -376,7 +376,7 @@ KURALLAR:
 
 	apiKey := os.Getenv("OPENAI_API_KEY")
 	if apiKey == "" {
-		apiKey = "sk-proj-4M3pP0aI6g7V8-d_Z7JEXmG3s1d0_n4-TfR-U31hItd0Vv5X0T6K54wM7B1sD7h1s99wD-mKz_T3BlbkFJNw4QyvQx-h302W3H9e99X8C5y4G7V8-d_Z7JEXmG3s1d0_n4-TfR-U31hItd0Vv5X0T6K54wM" // temp fallback
+		return "", fmt.Errorf("OPENAI_API_KEY tanımlı değil")
 	}
 
 	reqBody := openAIRequest{
@@ -1117,6 +1117,30 @@ type BrandContext struct {
 	// User selections (frontend)
 	Style           string // "realistic", "illustration", "3d-render", "minimalist"
 	TextPosition    string // "bottom_left", "center", etc.
+	AspectRatio     string // "1:1", "4:5", "9:16", "16:9" — boşsa platformdan türetilir
+}
+
+// PlatformAspectRatio — platformun feed'de en çok alan kaplayan görsel oranı
+func PlatformAspectRatio(platform string) string {
+	switch strings.ToLower(strings.TrimSpace(platform)) {
+	case "instagram", "facebook", "threads":
+		return "4:5" // 1080x1350
+	case "story", "reels", "tiktok", "instagram story", "instagram reels":
+		return "9:16" // 1080x1920
+	case "twitter", "x":
+		return "16:9"
+	default:
+		return "1:1" // LinkedIn ve diğerleri
+	}
+}
+
+// ResolveAspectRatio — açıkça verilmişse onu, yoksa platform oranını döndürür
+func ResolveAspectRatio(ctx BrandContext) string {
+	switch ctx.AspectRatio {
+	case "1:1", "4:5", "9:16", "16:9":
+		return ctx.AspectRatio
+	}
+	return PlatformAspectRatio(ctx.Platform)
 }
 
 // Stil → görsel stil açıklaması mapping
@@ -1161,17 +1185,13 @@ func BuildProfessionalImagePrompt(ctx BrandContext) string {
 	}
 
 	// Platform boyut ipucu
-	platformHint := "square 1:1 social media post"
-	switch ctx.Platform {
-	case "Instagram":
-		platformHint = "Instagram square post (1080×1080)"
-	case "LinkedIn":
-		platformHint = "LinkedIn professional post (1200×627 adapted to square)"
-	case "Facebook":
-		platformHint = "Facebook feed post (1080×1080)"
-	case "Twitter", "X":
-		platformHint = "Twitter/X post (1200×675 adapted to square)"
+	ratio := ResolveAspectRatio(ctx)
+	ratioDims := map[string]string{"1:1": "1080×1080", "4:5": "1080×1350 portrait", "9:16": "1080×1920 vertical", "16:9": "1600×900 landscape"}
+	platformName := ctx.Platform
+	if platformName == "" {
+		platformName = "Social media"
 	}
+	platformHint := fmt.Sprintf("%s post, %s aspect ratio (%s)", platformName, ratio, ratioDims[ratio])
 
 	// Konu/tema açıklaması
 	themeDesc := ctx.ImagePrompt
@@ -1266,10 +1286,9 @@ COMPOSITION & QUALITY REQUIREMENTS:
 - Make it scroll-stopping and instantly engaging — top creative agency quality.
 
 IMPORTANT RULES:
-- Do NOT include any watermarks, stock photo marks, or unrelated text.
-- Do NOT include random numbers, dates, or URLs unless specifically part of the headline above.
-- The headline text (if provided above) must be rendered beautifully inside the image.
-- The brand name (if provided above) should appear as an elegant, small signature.`,
+- ABSOLUTELY NO TEXT in the image: no letters, words, headlines, captions, logos, brand names, signs, labels, numbers, watermarks or UI elements. This overrides any earlier instruction to write text.
+- Headline, call-to-action and logo are added afterwards by the design layer in the brand's own font — only leave clean negative space for them.
+- The image must look like a real professional photo or design background, not an AI collage.`,
 		platformHint, visualStyle, mood, colorPalette,
 		brandHint, sectorHint, audienceHint, sloganHint, descHint, textZoneHint,
 		themeDesc,
@@ -1291,7 +1310,12 @@ type geminiImageContent struct {
 }
 
 type geminiImageGenConfig struct {
-	ResponseModalities []string `json:"responseModalities"`
+	ResponseModalities []string                `json:"responseModalities"`
+	ImageConfig        *geminiImageAspectConfig `json:"imageConfig,omitempty"`
+}
+
+type geminiImageAspectConfig struct {
+	AspectRatio string `json:"aspectRatio,omitempty"`
 }
 
 type geminiImageRequest struct {
@@ -1331,8 +1355,9 @@ func GenerateImage(prompt string, style string) (string, error) {
 // GenerateBrandImage — Tam marka bağlamlı profesyonel görsel üretimi
 func GenerateBrandImage(ctx BrandContext) (string, error) {
 	fullPrompt := BuildProfessionalImagePrompt(ctx)
-	log.Printf("🎨 Profesyonel prompt oluşturuldu — Marka: %s, Stil: %s, Platform: %s", ctx.BrandName, ctx.Style, ctx.Platform)
-	return generateImageWithFallback(fullPrompt, ctx.Style)
+	ratio := ResolveAspectRatio(ctx)
+	log.Printf("🎨 Profesyonel prompt oluşturuldu — Marka: %s, Stil: %s, Platform: %s, Oran: %s", ctx.BrandName, ctx.Style, ctx.Platform, ratio)
+	return generateImageWithFallbackRatio(fullPrompt, ctx.Style, ratio)
 }
 
 // ──────────────────────────────────────────────
@@ -1342,12 +1367,12 @@ func GenerateBrandImage(ctx BrandContext) (string, error) {
 
 // CallGeminiImageDirect — Gemini Flash Image API'yi doğrudan çağırır
 func CallGeminiImageDirect(apiKey, prompt string) (string, error) {
-	return callGeminiImage(apiKey, prompt, "realistic")
+	return callGeminiImage(apiKey, prompt, "realistic", "1:1")
 }
 
-// CallDALLEDirect — OpenAI DALL-E 3 API'yi doğrudan çağırır
+// CallDALLEDirect — OpenAI görsel API'sini (gpt-image) doğrudan çağırır
 func CallDALLEDirect(apiKey, prompt string) (string, error) {
-	return callDALLE(apiKey, prompt, "realistic")
+	return callDALLE(apiKey, prompt, "realistic", "1:1")
 }
 
 // ──────────────────────────────────────────────
@@ -1355,13 +1380,17 @@ func CallDALLEDirect(apiKey, prompt string) (string, error) {
 // ──────────────────────────────────────────────
 
 func generateImageWithFallback(prompt, style string) (string, error) {
+	return generateImageWithFallbackRatio(prompt, style, "1:1")
+}
+
+func generateImageWithFallbackRatio(prompt, style, ratio string) (string, error) {
 	// 1) Black Forest Labs (BFL) Flux Models Fallback
 	bflKey := os.Getenv("BFL_API_KEY")
 	if bflKey != "" {
 		fluxModels := []string{"flux-pro-1.1", "flux-pro", "flux-dev", "flux-schnell"}
 		for _, model := range fluxModels {
 			log.Printf("🚀 BFL deneniyor (Model: %s)", model)
-			result, err := callBFL(bflKey, model, prompt)
+			result, err := callBFL(bflKey, model, prompt, ratio)
 			if err == nil {
 				return result, nil
 			}
@@ -1373,7 +1402,7 @@ func generateImageWithFallback(prompt, style string) (string, error) {
 	// 2) Google Imagen 4 — En yüksek kaliteli fotorealizm
 	geminiKey := os.Getenv("GEMINI_API_KEY")
 	if geminiKey != "" {
-		result, err := callImagen4(geminiKey, prompt, style)
+		result, err := callImagen4(geminiKey, prompt, style, ratio)
 		if err == nil {
 			return result, nil
 		}
@@ -1382,22 +1411,22 @@ func generateImageWithFallback(prompt, style string) (string, error) {
 
 	// 3) Gemini Flash Image (fallback)
 	if geminiKey != "" {
-		result, err := callGeminiImage(geminiKey, prompt, style)
+		result, err := callGeminiImage(geminiKey, prompt, style, ratio)
 		if err == nil {
 			return result, nil
 		}
 		log.Printf("⚠️ Gemini görsel üretme başarısız, DALL-E'ye geçiliyor: %v", err)
 	}
 
-	// 4) DALL-E 3 fallback
+	// 4) OpenAI gpt-image fallback
 	openaiKey := os.Getenv("OPENAI_API_KEY")
 	if openaiKey != "" {
-		result, err := callDALLE(openaiKey, prompt, style)
+		result, err := callDALLE(openaiKey, prompt, style, ratio)
 		if err == nil {
 			return result, nil
 		}
 		log.Printf("❌ DALL-E de başarısız oldu: %v", err)
-		return "", fmt.Errorf("görsel üretme başarısız (BFL + Imagen4 + Gemini + DALL-E): %v", err)
+		return "", fmt.Errorf("görsel üretme başarısız (BFL + Imagen4 + Gemini + OpenAI): %v", err)
 	}
 
 	return "", fmt.Errorf("görsel üretme için API anahtarı bulunamadı (BFL_API_KEY, GEMINI_API_KEY veya OPENAI_API_KEY gerekli)")
@@ -1424,11 +1453,20 @@ type bflStatusResponse struct {
 	} `json:"result"`
 }
 
-func callBFL(apiKey, model, prompt string) (string, error) {
+func callBFL(apiKey, model, prompt, ratio string) (string, error) {
+	w, h := 1024, 1024
+	switch ratio {
+	case "4:5":
+		w, h = 1024, 1280
+	case "9:16":
+		w, h = 768, 1344
+	case "16:9":
+		w, h = 1344, 768
+	}
 	reqBody := bflRequest{
 		Prompt: prompt,
-		Width:  1024,
-		Height: 1024,
+		Width:  w,
+		Height: h,
 	}
 	bodyBytes, _ := json.Marshal(reqBody)
 
@@ -1501,9 +1539,15 @@ func callBFL(apiKey, model, prompt string) (string, error) {
 // Provider 1: Google Imagen 4 (predict endpoint)
 // ──────────────────────────────────────────────
 
-func callImagen4(apiKey, prompt, style string) (string, error) {
-	// Aspect ratio: e-ticaret için 1:1, sosyal medya story için 9:16
-	aspectRatio := "1:1"
+func callImagen4(apiKey, prompt, style, ratio string) (string, error) {
+	// Imagen 4:5 desteklemiyor → 3:4 üretip 4:5'e kırpıyoruz
+	aspectRatio := ratio
+	if ratio == "4:5" {
+		aspectRatio = "3:4"
+	}
+	if aspectRatio == "" {
+		aspectRatio = "1:1"
+	}
 
 	reqBody := map[string]interface{}{
 		"instances": []map[string]interface{}{
@@ -1565,6 +1609,7 @@ func callImagen4(apiKey, prompt, style string) (string, error) {
 	if err != nil {
 		return "", fmt.Errorf("base64 decode hatası: %v", err)
 	}
+	imageBytes = cropToAspect(imageBytes, ratio)
 
 	localURL, err := saveImageBytes(imageBytes)
 	if err != nil {
@@ -1579,7 +1624,11 @@ func callImagen4(apiKey, prompt, style string) (string, error) {
 // Provider 2: Gemini Flash Image (generateContent)
 // ──────────────────────────────────────────────
 
-func callGeminiImage(apiKey, prompt, style string) (string, error) {
+func callGeminiImage(apiKey, prompt, style, ratio string) (string, error) {
+	var imageConfig *geminiImageAspectConfig
+	if ratio != "" {
+		imageConfig = &geminiImageAspectConfig{AspectRatio: ratio}
+	}
 	reqBody := geminiImageRequest{
 		Contents: []geminiImageContent{
 			{
@@ -1590,6 +1639,7 @@ func callGeminiImage(apiKey, prompt, style string) (string, error) {
 		},
 		GenerationConfig: geminiImageGenConfig{
 			ResponseModalities: []string{"TEXT", "IMAGE"},
+			ImageConfig:        imageConfig,
 		},
 	}
 
@@ -1652,42 +1702,59 @@ func callGeminiImage(apiKey, prompt, style string) (string, error) {
 	if err != nil {
 		return "", fmt.Errorf("base64 decode hatası: %v", err)
 	}
+	imageBytes = cropToAspect(imageBytes, ratio)
 
 	localURL, err := saveImageBytes(imageBytes)
 	if err != nil {
 		return "", fmt.Errorf("görsel kaydetme hatası: %v", err)
 	}
 
-	log.Printf("✅ Görsel üretildi (stil: %s, motor: Gemini Flash Image)", style)
+	log.Printf("✅ Görsel üretildi (stil: %s, motor: Gemini Flash Image, oran: %s)", style, ratio)
 	return localURL, nil
 }
 
 // ──────────────────────────────────────────────
-// Provider 2: OpenAI DALL-E 3 (fallback)
+// Provider 3: OpenAI gpt-image (fallback)
+// dall-e-3 hesapta kapatıldığı için gpt-image ailesi kullanılıyor.
+// Model OPENAI_IMAGE_MODEL ile değiştirilebilir (varsayılan gpt-image-1).
 // ──────────────────────────────────────────────
 
 type dalleRequest struct {
-	Model  string `json:"model"`
-	Prompt string `json:"prompt"`
-	N      int    `json:"n"`
-	Size   string `json:"size"`
+	Model   string `json:"model"`
+	Prompt  string `json:"prompt"`
+	N       int    `json:"n"`
+	Size    string `json:"size"`
+	Quality string `json:"quality,omitempty"`
 }
 
 type dalleResponse struct {
 	Data []struct {
-		URL string `json:"url"`
+		URL     string `json:"url"`
+		B64JSON string `json:"b64_json"`
 	} `json:"data"`
 	Error *struct {
 		Message string `json:"message"`
 	} `json:"error"`
 }
 
-func callDALLE(apiKey, prompt, style string) (string, error) {
+func callDALLE(apiKey, prompt, style, ratio string) (string, error) {
+	model := os.Getenv("OPENAI_IMAGE_MODEL")
+	if model == "" {
+		model = "gpt-image-1"
+	}
+	size := "1024x1024"
+	switch ratio {
+	case "4:5", "9:16":
+		size = "1024x1536"
+	case "16:9":
+		size = "1536x1024"
+	}
 	reqBody := dalleRequest{
-		Model:  "dall-e-3",
-		Prompt: prompt,
-		N:      1,
-		Size:   "1024x1024",
+		Model:   model,
+		Prompt:  prompt,
+		N:       1,
+		Size:    size,
+		Quality: "high",
 	}
 
 	bodyBytes, err := json.Marshal(reqBody)
@@ -1702,10 +1769,10 @@ func callDALLE(apiKey, prompt, style string) (string, error) {
 	req.Header.Set("Content-Type", "application/json")
 	req.Header.Set("Authorization", "Bearer "+apiKey)
 
-	client := &http.Client{Timeout: 120 * time.Second}
+	client := &http.Client{Timeout: 180 * time.Second}
 	resp, err := client.Do(req)
 	if err != nil {
-		return "", fmt.Errorf("DALL-E API isteği başarısız: %v", err)
+		return "", fmt.Errorf("OpenAI görsel API isteği başarısız: %v", err)
 	}
 	defer resp.Body.Close()
 
@@ -1715,7 +1782,7 @@ func callDALLE(apiKey, prompt, style string) (string, error) {
 	}
 
 	if resp.StatusCode != http.StatusOK {
-		return "", fmt.Errorf("DALL-E API hata %d: %s", resp.StatusCode, string(respBody))
+		return "", fmt.Errorf("OpenAI görsel API hata %d: %s", resp.StatusCode, string(respBody))
 	}
 
 	var dalleResp dalleResponse
@@ -1724,22 +1791,36 @@ func callDALLE(apiKey, prompt, style string) (string, error) {
 	}
 
 	if dalleResp.Error != nil {
-		return "", fmt.Errorf("DALL-E hatası: %s", dalleResp.Error.Message)
+		return "", fmt.Errorf("OpenAI görsel hatası: %s", dalleResp.Error.Message)
 	}
 
 	if len(dalleResp.Data) == 0 {
-		return "", fmt.Errorf("DALL-E boş yanıt döndü")
+		return "", fmt.Errorf("OpenAI görsel API boş yanıt döndü")
 	}
 
-	// DALL-E URL döndürür — indir ve lokale kaydet
+	// gpt-image b64_json döndürür; eski modeller URL döndürür
+	if b64 := dalleResp.Data[0].B64JSON; b64 != "" {
+		imageBytes, err := base64DecodeImage(b64)
+		if err != nil {
+			return "", fmt.Errorf("base64 decode hatası: %v", err)
+		}
+		imageBytes = cropToAspect(imageBytes, ratio)
+		localURL, err := saveImageBytes(imageBytes)
+		if err != nil {
+			return "", fmt.Errorf("görsel kaydetme hatası: %v", err)
+		}
+		log.Printf("✅ Görsel üretildi (stil: %s, motor: OpenAI %s, oran: %s)", style, model, ratio)
+		return localURL, nil
+	}
+
 	imageURL := dalleResp.Data[0].URL
 	localURL, err := downloadAndSaveImage(imageURL)
 	if err != nil {
-		log.Printf("⚠️ DALL-E görseli indirilemedi, harici URL kullanılıyor: %v", err)
+		log.Printf("⚠️ OpenAI görseli indirilemedi, harici URL kullanılıyor: %v", err)
 		return imageURL, nil // Harici URL fallback
 	}
 
-	log.Printf("✅ Görsel üretildi (stil: %s, motor: DALL-E 3)", style)
+	log.Printf("✅ Görsel üretildi (stil: %s, motor: OpenAI %s)", style, model)
 	return localURL, nil
 }
 

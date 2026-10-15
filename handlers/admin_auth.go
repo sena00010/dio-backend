@@ -31,6 +31,14 @@ type AdminLoginRequest struct {
 
 // POST /api/admin/register
 func AdminRegister(c *gin.Context) {
+	// Kayıt sadece ilk admin için veya ADMIN_REGISTER_ENABLED=true iken açık
+	var adminCount int64
+	database.DB.Model(&models.AdminUser{}).Count(&adminCount)
+	if adminCount > 0 && os.Getenv("ADMIN_REGISTER_ENABLED") != "true" {
+		c.JSON(http.StatusForbidden, gin.H{"error": "Admin kaydı kapalı"})
+		return
+	}
+
 	var req AdminRegisterRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})

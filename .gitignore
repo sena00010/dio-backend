@@ -2,3 +2,8 @@ firebase-admin.json
 .env
 node_modules/
 *.exe
+# Yerel ayar, yüklemeler ve veritabanı dökümleri repoya girmez
+.vscode/
+.DS_Store
+assets/uploads/
+*.sql
