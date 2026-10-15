@@ -428,7 +428,7 @@ KURALLAR:
 	}
 
 	bodyBytes, _ := json.Marshal(reqBody)
-	req, err := http.NewRequest("POST", "https://api.openai.com/v1/chat/completions", bytes.NewBuffer(bodyBytes))
+	req, err := http.NewRequest("POST", "https://api.openai.com/v1/chat/completions", bytes.NewBuffer(AdaptChatBody(bodyBytes)))
 	if err != nil {
 		return "", fmt.Errorf("request oluşturma hatası: %v", err)
 	}
@@ -819,7 +819,7 @@ func generateDesignLayersWithOpenAI(apiKey, prompt, style string) ([]DesignLayer
 	}
 
 	jsonBody, _ := json.Marshal(reqBody)
-	httpReq, _ := http.NewRequest("POST", "https://api.openai.com/v1/chat/completions", bytes.NewBuffer(jsonBody))
+	httpReq, _ := http.NewRequest("POST", "https://api.openai.com/v1/chat/completions", bytes.NewBuffer(AdaptChatBody(jsonBody)))
 	httpReq.Header.Set("Content-Type", "application/json")
 	httpReq.Header.Set("Authorization", "Bearer "+apiKey)
 
@@ -916,7 +916,7 @@ func generateWithOpenAI(topic, platform, campaignType string, count int, company
 		return nil, fmt.Errorf("request marshal hatası: %v", err)
 	}
 
-	req, err := http.NewRequest("POST", "https://api.openai.com/v1/chat/completions", bytes.NewBuffer(bodyBytes))
+	req, err := http.NewRequest("POST", "https://api.openai.com/v1/chat/completions", bytes.NewBuffer(AdaptChatBody(bodyBytes)))
 	if err != nil {
 		return nil, fmt.Errorf("request oluşturma hatası: %v", err)
 	}
@@ -2152,7 +2152,7 @@ func analyzeLogoWithOpenAI(apiKey, imageBase64, prompt string) (*LogoPositionRes
 	}
 
 	bodyBytes, _ := json.Marshal(reqBody)
-	req, _ := http.NewRequest("POST", "https://api.openai.com/v1/chat/completions", bytes.NewBuffer(bodyBytes))
+	req, _ := http.NewRequest("POST", "https://api.openai.com/v1/chat/completions", bytes.NewBuffer(AdaptChatBody(bodyBytes)))
 	req.Header.Set("Content-Type", "application/json")
 	req.Header.Set("Authorization", "Bearer "+apiKey)
 
@@ -2429,7 +2429,7 @@ func analyzeTextPlacementWithOpenAI(apiKey, imageBase64, prompt string) ([]Desig
 	}
 
 	bodyBytes, _ := json.Marshal(reqBody)
-	req, _ := http.NewRequest("POST", "https://api.openai.com/v1/chat/completions", bytes.NewBuffer(bodyBytes))
+	req, _ := http.NewRequest("POST", "https://api.openai.com/v1/chat/completions", bytes.NewBuffer(AdaptChatBody(bodyBytes)))
 	req.Header.Set("Content-Type", "application/json")
 	req.Header.Set("Authorization", "Bearer "+apiKey)
 
@@ -2630,7 +2630,7 @@ func researchWithOpenAI(apiKey, prompt string) (*BrandResearchResult, error) {
 	}
 
 	bodyBytes, _ := json.Marshal(reqBody)
-	req, _ := http.NewRequest("POST", "https://api.openai.com/v1/chat/completions", bytes.NewBuffer(bodyBytes))
+	req, _ := http.NewRequest("POST", "https://api.openai.com/v1/chat/completions", bytes.NewBuffer(AdaptChatBody(bodyBytes)))
 	req.Header.Set("Content-Type", "application/json")
 	req.Header.Set("Authorization", "Bearer "+apiKey)
 

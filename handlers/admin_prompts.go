@@ -246,7 +246,7 @@ CRITICAL RULES:
 	}
 
 	bodyBytes, _ := json.Marshal(reqBody)
-	httpReq, _ := http.NewRequest("POST", "https://api.openai.com/v1/chat/completions", bytes.NewBuffer(bodyBytes))
+	httpReq, _ := http.NewRequest("POST", "https://api.openai.com/v1/chat/completions", bytes.NewBuffer(utils.AdaptChatBody(bodyBytes)))
 	httpReq.Header.Set("Content-Type", "application/json")
 	httpReq.Header.Set("Authorization", "Bearer "+apiKey)
 

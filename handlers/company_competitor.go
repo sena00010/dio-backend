@@ -109,7 +109,7 @@ Dönüşü sadece içerisi JSON Array formatında olacak şekilde metin ver. JSO
 	}
 
 	bodyBytes, _ := json.Marshal(reqBody)
-	httpReq, err := http.NewRequest("POST", "https://api.openai.com/v1/chat/completions", bytes.NewBuffer(bodyBytes))
+	httpReq, err := http.NewRequest("POST", "https://api.openai.com/v1/chat/completions", bytes.NewBuffer(utils.AdaptChatBody(bodyBytes)))
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "API isteği hazırlanamadı"})
 		return

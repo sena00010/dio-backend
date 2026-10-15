@@ -81,3 +81,21 @@ func TestFixAIJSONRawNewlines(t *testing.T) {
 		t.Errorf("description changed: %q", res[0].Description)
 	}
 }
+
+func TestAdaptChatBody(t *testing.T) {
+	old := []byte(`{"model":"gpt-4o-mini","temperature":0.7,"max_tokens":500,"messages":[]}`)
+	if string(AdaptChatBody(old)) != string(old) {
+		t.Error("non-reasoning model body must be unchanged")
+	}
+	var m map[string]interface{}
+	json.Unmarshal(AdaptChatBody([]byte(`{"model":"gpt-5.4-mini","temperature":0.7,"max_tokens":500,"messages":[{"role":"user","content":"x"}]}`)), &m)
+	if _, ok := m["temperature"]; ok {
+		t.Error("temperature should be removed")
+	}
+	if _, ok := m["max_tokens"]; ok {
+		t.Error("max_tokens should be removed")
+	}
+	if m["max_completion_tokens"].(float64) != 4500 || m["reasoning_effort"] != "low" || m["messages"] == nil {
+		t.Errorf("unexpected body: %v", m)
+	}
+}

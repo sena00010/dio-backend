@@ -43,7 +43,7 @@ func GetAiProvider(settingKey string, defaultProvider string) string {
 func mapSettingToPromptKey(settingKey string) string {
 	mapping := map[string]string{
 		"gpt_image_edit":   "product_studio_edit",
-		"gpt_fast_general": "ai_idea_generator",
+		"gpt_fast_general": "topic_suggestion", // eskiden DB'de olmayan ai_idea_generator'a bakıyordu → hep varsayılan model
 		"gpt_smart_general": "creative_variant_generator",
 	}
 	if pk, ok := mapping[settingKey]; ok {

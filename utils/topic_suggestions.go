@@ -319,7 +319,7 @@ func callOpenAIForTopics(prompt string) ([]TopicSuggestion, error) {
 	}
 
 	bodyBytes, _ := json.Marshal(reqBody)
-	req, err := http.NewRequest("POST", "https://api.openai.com/v1/chat/completions", bytes.NewBuffer(bodyBytes))
+	req, err := http.NewRequest("POST", "https://api.openai.com/v1/chat/completions", bytes.NewBuffer(AdaptChatBody(bodyBytes)))
 	if err != nil {
 		return nil, fmt.Errorf("request oluşturma hatası: %v", err)
 	}
@@ -466,7 +466,7 @@ func callOpenAIRaw(apiKey, prompt string) (string, error) {
 	}
 
 	bodyBytes, _ := json.Marshal(reqBody)
-	req, _ := http.NewRequest("POST", "https://api.openai.com/v1/chat/completions", bytes.NewBuffer(bodyBytes))
+	req, _ := http.NewRequest("POST", "https://api.openai.com/v1/chat/completions", bytes.NewBuffer(AdaptChatBody(bodyBytes)))
 	req.Header.Set("Content-Type", "application/json")
 	req.Header.Set("Authorization", "Bearer "+apiKey)
 
