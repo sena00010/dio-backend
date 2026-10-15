@@ -22,12 +22,14 @@ func InitFirebase() {
 	opt := option.WithCredentialsFile(credFile)
 	app, err := firebase.NewApp(context.Background(), nil, opt)
 	if err != nil {
-		log.Fatalf("❌ Firebase uygulaması başlatılamadı: %v", err)
+		log.Printf("⚠️ Firebase atlandı (yerel test): %v", err)
+		return
 	}
 
 	firebaseAuth, err = app.Auth(context.Background())
 	if err != nil {
-		log.Fatalf("❌ Firebase Auth client oluşturulamadı: %v", err)
+		log.Printf("⚠️ Firebase Auth atlandı (yerel test): %v", err)
+		return
 	}
 
 	log.Println("✅ Firebase Admin SDK başlatıldı")

@@ -18,7 +18,10 @@ func Connect() {
 	}
 
 	var err error
-	DB, err = gorm.Open(mysql.Open(dsn), &gorm.Config{})
+	DB, err = gorm.Open(mysql.Open(dsn), &gorm.Config{
+		// ProductImageStudio <-> Variant karşılıklı FK yüzünden migrate sırası kırılmasın
+		DisableForeignKeyConstraintWhenMigrating: true,
+	})
 	if err != nil {
 		log.Fatalf("❌ Veritabanına bağlanılamadı: %v", err)
 	}
