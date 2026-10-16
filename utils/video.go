@@ -142,7 +142,7 @@ var trLetterNames = map[rune]string{
 }
 
 // Kelime gibi okunan kısa kısaltmalar
-var acronymWords = map[string]string{"SEO": "seo", "NATO": "nato", "KOBİ": "kobi", "AVM": "a ve me", "DM": "di em", "CEO": "si i o", "AI": "yapay zekâ"}
+var acronymWords = map[string]string{"SEO": "seo", "NATO": "nato", "KOBİ": "kobi", "AVM": "a ve me", "DM": "di em", "CEO": "si i o", "AI": "yapay zekâ", "DIO": "Dio"}
 
 // ParsePronunciations — "İNKA=İnka, İK=insan kaynakları" → eşleme
 func ParsePronunciations(s string) map[string]string {
