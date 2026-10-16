@@ -25,6 +25,8 @@ type createVideoRequest struct {
 	DurationSec int    `json:"duration_sec"`
 	Format      string `json:"format"`
 	Voice       string `json:"voice"`
+	// İsteğe bağlı: "İNKA=İnka, İK=insan kaynakları"
+	Pronunciation string `json:"pronunciation"`
 }
 
 // POST /api/protected/videos — videoyu kuyruğa alır, üretim arka planda sürer
@@ -69,7 +71,7 @@ func CreateVideo(c *gin.Context) {
 
 	v := models.VideoProject{
 		CompanyID: company.ID, PostID: req.PostID, Title: title, Brief: req.Brief,
-		DurationSec: req.DurationSec, Format: req.Format, Voice: req.Voice,
+		DurationSec: req.DurationSec, Format: req.Format, Voice: req.Voice, Pronunciation: truncate(req.Pronunciation, 480),
 		Status: "queued", Stage: "Sırada bekliyor", Progress: 2,
 	}
 	if err := database.DB.Create(&v).Error; err != nil {
@@ -104,7 +106,7 @@ func runVideo(id uint, company models.Company) {
 	req := utils.VideoRequest{
 		Brief: v.Brief, CompanyContext: buildCompanyContext(company), BrandName: company.Name,
 		Sector: company.Sector, BrandColors: company.BrandColors,
-		DurationSec: v.DurationSec, Format: v.Format, Voice: v.Voice,
+		DurationSec: v.DurationSec, Format: v.Format, Voice: v.Voice, Pronunciations: v.Pronunciation,
 	}
 	scenes, err := utils.GenerateVideoScript(req)
 	if err != nil {

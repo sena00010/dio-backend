@@ -130,3 +130,14 @@ func TestWrapCaption(t *testing.T) {
 		t.Errorf("words changed: %q", got)
 	}
 }
+
+func TestSpeakableText(t *testing.T) {
+	got := SpeakableText("İNKA İK ile KOBİ ve SEO işleri. Bordro hazır.", nil)
+	want := "İnka i ka ile kobi ve seo işleri. Bordro hazır."
+	if got != want {
+		t.Errorf("got %q want %q", got, want)
+	}
+	if got := SpeakableText("DIO ile", ParsePronunciations("DIO=Dio")); got != "Dio ile" {
+		t.Errorf("override: %q", got)
+	}
+}

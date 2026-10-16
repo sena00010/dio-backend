@@ -15,6 +15,7 @@ import (
 	"strings"
 	"sync"
 	"time"
+	"unicode"
 
 	"github.com/kullaniciadiniz/dio-panel-backend/database"
 	"github.com/kullaniciadiniz/dio-panel-backend/models"
@@ -41,6 +42,7 @@ type VideoRequest struct {
 	DurationSec    int
 	Format         string // 9:16 | 1:1
 	Voice          string // kadin | erkek | yok
+	Pronunciations string // isteğe bağlı "İNKA=İnka" satırları (virgül veya satır ile ayrılmış)
 }
 
 // ProgressFunc — aşama ve yüzde bildirimi
@@ -62,7 +64,7 @@ func VideoToolsAvailable() error {
 	return nil
 }
 
-// GenerateVideoScript — süreye göre sahnelere bölünmüş senaryo (~5 sn/sahne, Türkçe TTS ~1.8 kelime/sn)
+// GenerateVideoScript — süreye göre sahnelere bölünmüş senaryo (~5 sn/sahne, sakin Türkçe seslendirme ~1.6 kelime/sn)
 func GenerateVideoScript(req VideoRequest) ([]VideoScene, error) {
 	scenes := int(math.Round(float64(req.DurationSec) / 5))
 	if scenes < 3 {
@@ -71,7 +73,7 @@ func GenerateVideoScript(req VideoRequest) ([]VideoScene, error) {
 	if scenes > 36 {
 		scenes = 36
 	}
-	words := int(float64(req.DurationSec) * 1.8)
+	words := int(float64(req.DurationSec) * 1.6)
 	narrationRule := fmt.Sprintf("Seslendirme toplamı yaklaşık %d kelime olsun (sahne başına %d-%d kelime).", words, words/scenes-2, words/scenes+3)
 	if req.Voice == "yok" {
 		narrationRule = "Seslendirme yok; narration alanını kısa tut (sahne başına en fazla 8 kelime), asıl mesaj caption'da."
@@ -90,6 +92,7 @@ YAPI:
 - caption: ekranda görünecek kısa yazı, en fazla 6 kelime, emojisiz.
 - image_prompt: o sahne için İngilizce, gerçekçi, dikey kompozisyonlu görsel tarifi; görselde YAZI olmasın; sahneler görsel olarak tutarlı bir hikâye anlatsın.
 - Doğal, akıcı Türkçe; doğru Türkçe karakterler. Uydurma rakam, müşteri adı veya yorum YOK.
+- narration seslendirilecek: kısaltma KULLANMA, açık yaz (İK → insan kaynakları, KDV → katma değer vergisi); marka adını tamamı büyük harfle değil normal yazımla yaz (İNKA → İnka). caption'da kısaltma kullanılabilir.
 
 Sadece geçerli JSON dizisi döndür:
 [{"narration":"...","caption":"...","image_prompt":"..."}]`,
@@ -129,8 +132,94 @@ Sadece geçerli JSON dizisi döndür:
 	return out, nil
 }
 
+// Türkçe harf adları — kısaltmalar harf harf okunur (İK → "i ka")
+var trLetterNames = map[rune]string{
+	'A': "a", 'B': "be", 'C': "ce", 'Ç': "çe", 'D': "de", 'E': "e", 'F': "fe", 'G': "ge", 'Ğ': "yumuşak ge",
+	'H': "he", 'I': "ı", 'İ': "i", 'J': "je", 'K': "ka", 'L': "le", 'M': "me", 'N': "ne", 'O': "o", 'Ö': "ö",
+	'P': "pe", 'R': "re", 'S': "se", 'Ş': "şe", 'T': "te", 'U': "u", 'Ü': "ü", 'V': "ve", 'Y': "ye", 'Z': "ze",
+	'Q': "kü", 'W': "dabılyu", 'X': "iks",
+}
+
+// Kelime gibi okunan kısa kısaltmalar
+var acronymWords = map[string]string{"SEO": "seo", "NATO": "nato", "KOBİ": "kobi", "AVM": "a ve me"}
+
+// ParsePronunciations — "İNKA=İnka, İK=insan kaynakları" → eşleme
+func ParsePronunciations(s string) map[string]string {
+	out := map[string]string{}
+	for _, part := range strings.FieldsFunc(s, func(r rune) bool { return r == ',' || r == '\n' || r == ';' }) {
+		kv := strings.SplitN(part, "=", 2)
+		if len(kv) == 2 && strings.TrimSpace(kv[0]) != "" && strings.TrimSpace(kv[1]) != "" {
+			out[strings.TrimSpace(kv[0])] = strings.TrimSpace(kv[1])
+		}
+	}
+	return out
+}
+
+// SpeakableText — seslendirmeden önce metni ses modelinin doğru okuyacağı hale getirir:
+// kullanıcı telaffuzları uygulanır; tamamı büyük harf kelimeler 2-3 harfse harf harf,
+// daha uzunsa normal yazımla okunur (İNKA → İnka, İK → i ka).
+func SpeakableText(text string, overrides map[string]string) string {
+	for k, v := range overrides {
+		text = strings.ReplaceAll(text, k, v)
+	}
+	var b strings.Builder
+	word := []rune{}
+	flush := func() {
+		if len(word) == 0 {
+			return
+		}
+		w := string(word)
+		upper := len(word) >= 2
+		for _, r := range word {
+			if !unicode.IsUpper(r) {
+				upper = false
+				break
+			}
+		}
+		switch {
+		case !upper:
+			b.WriteString(w)
+		case acronymWords[w] != "":
+			b.WriteString(acronymWords[w])
+		case len(word) <= 3:
+			parts := make([]string, 0, len(word))
+			for _, r := range word {
+				if n, ok := trLetterNames[r]; ok {
+					parts = append(parts, n)
+				} else {
+					parts = append(parts, string(r))
+				}
+			}
+			b.WriteString(strings.Join(parts, " "))
+		default:
+			lower := []rune(strings.ToLowerSpecial(unicode.TurkishCase, w))
+			b.WriteString(string(word[0]) + string(lower[1:]))
+		}
+		word = word[:0]
+	}
+	for _, r := range text {
+		if unicode.IsLetter(r) {
+			word = append(word, r)
+			continue
+		}
+		flush()
+		b.WriteRune(r)
+	}
+	flush()
+	return b.String()
+}
+
+// speechInstructions — sakin tempo + marka adının net telaffuzu (testte en tutarlı sonuç)
+func speechInstructions(brandName string) string {
+	ins := "Türkçe konuş. Sakin, net ve anlaşılır bir tanıtım seslendirmesi yap; orta tempoda, kesinlikle acele etme. Cümle aralarında kısa, doğal duraklamalar ver."
+	if name := strings.TrimSpace(SpeakableText(brandName, nil)); name != "" {
+		ins += fmt.Sprintf(" Marka adı %q özenle ve net telaffuz edilir; hecelerini yutma, başına ya da sonuna ses ekleme.", name)
+	}
+	return ins
+}
+
 // synthesizeSpeech — OpenAI TTS ile Türkçe mp3
-func synthesizeSpeech(text, voice, outPath string) error {
+func synthesizeSpeech(text, voice, brandName, outPath string) error {
 	apiKey := os.Getenv("OPENAI_API_KEY")
 	if apiKey == "" {
 		return fmt.Errorf("OPENAI_API_KEY yok")
@@ -143,7 +232,7 @@ func synthesizeSpeech(text, voice, outPath string) error {
 		"model":           "gpt-4o-mini-tts",
 		"voice":           v,
 		"input":           text,
-		"instructions":    "Türkçe konuş. Doğal, sıcak ve enerjik bir sosyal medya reklamı seslendirmesi; net telaffuz, akıcı tempo.",
+		"instructions":    speechInstructions(brandName),
 		"response_format": "mp3",
 	})
 	req, _ := http.NewRequest("POST", "https://api.openai.com/v1/audio/speech", bytes.NewBuffer(body))
@@ -299,7 +388,7 @@ func RenderVideo(req VideoRequest, scenes []VideoScene, progress ProgressFunc) (
 		durs[i] = math.Max(baseDur, 2.5)
 		if req.Voice != "yok" && strings.TrimSpace(sc.Narration) != "" {
 			p := filepath.Join(work, fmt.Sprintf("voice_%02d.mp3", i))
-			if e := synthesizeSpeech(sc.Narration, req.Voice, p); e != nil {
+			if e := synthesizeSpeech(SpeakableText(sc.Narration, ParsePronunciations(req.Pronunciations)), req.Voice, req.BrandName, p); e != nil {
 				log.Printf("⚠️ Sahne %d seslendirilemedi: %v", i+1, e)
 			} else if d, e := probeDuration(p); e == nil {
 				audio[i] = p
@@ -307,19 +396,6 @@ func RenderVideo(req VideoRequest, scenes []VideoScene, progress ProgressFunc) (
 			}
 		}
 		progress(fmt.Sprintf("Seslendirme hazırlanıyor (%d/%d)", i+1, n), 55+(i+1)*15/n)
-	}
-
-	// Seslendirme hedef süreyi aşarsa sesi perdesi değişmeden en fazla %20 hızlandır
-	tempo := 1.0
-	total := 0.0
-	for _, d := range durs {
-		total += d
-	}
-	if total > float64(req.DurationSec)*1.05 {
-		tempo = math.Min(total/float64(req.DurationSec), 1.2)
-		for i := range durs {
-			durs[i] = math.Max(durs[i]/tempo, 2.2)
-		}
 	}
 
 	// 3) Sahne klipleri: yavaş yakınlaşma + alt yazı + yumuşak giriş/çıkış
@@ -363,7 +439,7 @@ func RenderVideo(req VideoRequest, scenes []VideoScene, progress ProgressFunc) (
 		args = append(args, "-vf", vf, "-t", fmt.Sprintf("%.2f", durs[i]),
 			"-c:v", "libx264", "-preset", "veryfast", "-crf", "21", "-r", "30",
 			"-c:a", "aac", "-b:a", "160k", "-ar", "44100", "-ac", "2",
-			"-af", fmt.Sprintf("atempo=%.3f,apad,atrim=0:%.2f", tempo, durs[i]), "-movflags", "+faststart", clip)
+			"-af", fmt.Sprintf("apad,atrim=0:%.2f", durs[i]), "-movflags", "+faststart", clip)
 		if out, e := exec.Command("ffmpeg", args...).CombinedOutput(); e != nil {
 			return "", "", fmt.Errorf("sahne %d işlenemedi: %v — %.300s", i+1, e, lastLines(string(out)))
 		}
