@@ -99,3 +99,21 @@ func TestAdaptChatBody(t *testing.T) {
 		t.Errorf("unexpected body: %v", m)
 	}
 }
+
+func TestAvoidSubject(t *testing.T) {
+	sub := &layoutBox{X: 33, Y: 20, W: 34, H: 52}
+	ls := []DesignLayer{
+		{Type: "description", Text: "Taze çekirdek, el yapımı kruvasan.", X: 8, Y: 34, MaxWidth: 55, FontSize: 15, LineHeight: 1.3},
+		{Type: "headline", Text: "Başlık", X: 8, Y: 5, MaxWidth: 60, FontSize: 38, LineHeight: 1.1},
+	}
+	out := avoidSubject(ls, sub, "4:5")
+	if out[0].X+out[0].MaxWidth > sub.X && out[0].X < sub.X+sub.W {
+		t.Errorf("description still overlaps subject: x=%.1f w=%.1f", out[0].X, out[0].MaxWidth)
+	}
+	if out[1].MaxWidth != 60 {
+		t.Errorf("headline above subject should be untouched, got w=%.1f", out[1].MaxWidth)
+	}
+	if !isLightHex("#ffffff") || isLightHex("#222222") {
+		t.Error("isLightHex wrong")
+	}
+}
