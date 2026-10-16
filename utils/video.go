@@ -43,6 +43,23 @@ type VideoRequest struct {
 	Format         string // 9:16 | 1:1
 	Voice          string // kadin | erkek | yok
 	Pronunciations string // isteğe bağlı "İNKA=İnka" satırları (virgül veya satır ile ayrılmış)
+	Language       string // tr, en, de, fr, es, ar, ru, az, nl, it (boşsa tr)
+	Subtitles      bool   // ekran yazıları
+	Intro          bool   // logolu marka girişi + köşe logosu
+	LogoURL        string
+}
+
+// VideoLanguages — desteklenen video dilleri (ad: senaryo ve seslendirme talimatı için)
+var VideoLanguages = map[string]string{
+	"tr": "Türkçe", "en": "English", "de": "Deutsch", "fr": "Français", "es": "Español",
+	"ar": "العربية", "ru": "Русский", "az": "Azərbaycan dili", "nl": "Nederlands", "it": "Italiano",
+}
+
+func videoLang(code string) (string, string) {
+	if name, ok := VideoLanguages[code]; ok {
+		return code, name
+	}
+	return "tr", "Türkçe"
 }
 
 // ProgressFunc — aşama ve yüzde bildirimi
@@ -79,7 +96,13 @@ func GenerateVideoScript(req VideoRequest) ([]VideoScene, error) {
 		narrationRule = "Seslendirme yok; narration alanını kısa tut (sahne başına en fazla 8 kelime), asıl mesaj caption'da."
 	}
 
-	prompt := fmt.Sprintf(`Sen Türkiye'nin en iyi kısa video (Reels/TikTok) senaristisin. Aşağıdaki içerik için TAM OLARAK %d sahnelik, toplam yaklaşık %d saniyelik dikey bir video senaryosu yaz.
+	langCode, langName := videoLang(req.Language)
+	langRule := "- Doğal, akıcı Türkçe; doğru Türkçe karakterler. Uydurma rakam, müşteri adı veya yorum YOK.\n" +
+		"- narration seslendirilecek: kısaltma KULLANMA, açık yaz (İK → insan kaynakları, KDV → katma değer vergisi); \"DM'den yazın\" yerine \"bize mesaj atın\" gibi konuşma dilini kullan; marka adını tamamı büyük harfle değil normal yazımla yaz (İNKA → İnka). caption'da kısaltma kullanılabilir."
+	if langCode != "tr" {
+		langRule = fmt.Sprintf("- narration ve caption TAMAMEN %s dilinde, o dili ana dili olarak konuşan birinin doğal günlük ifadeleriyle yazılsın (çeviri kokmasın). Uydurma rakam, müşteri adı veya yorum YOK.\n- narration'da kısaltma kullanma, açık yaz; marka adını normal yazımla yaz.", langName)
+	}
+	prompt := fmt.Sprintf(`Sen dünyanın en iyi kısa video (Reels/TikTok) senaristisin. Aşağıdaki içerik için TAM OLARAK %d sahnelik, toplam yaklaşık %d saniyelik dikey bir video senaryosu yaz. Video dili: %s.
 
 İÇERİK / BRIEF: %s
 MARKA BAĞLAMI: %s
@@ -91,13 +114,12 @@ YAPI:
 - %s
 - caption: ekranda görünecek kısa yazı, en fazla 6 kelime, emojisiz.
 - image_prompt: o sahne için İngilizce, gerçekçi, dikey kompozisyonlu görsel tarifi; görselde YAZI olmasın; sahneler görsel olarak tutarlı bir hikâye anlatsın.
-- Doğal, akıcı Türkçe; doğru Türkçe karakterler. Uydurma rakam, müşteri adı veya yorum YOK.
-- narration seslendirilecek: kısaltma KULLANMA, açık yaz (İK → insan kaynakları, KDV → katma değer vergisi); "DM'den yazın" yerine "bize mesaj atın" gibi konuşma dilini kullan; marka adını tamamı büyük harfle değil normal yazımla yaz (İNKA → İnka). caption'da kısaltma kullanılabilir.
+%s
 - narration gerçek bir insanın konuşması gibi olsun: samimi, günlük konuşma dili, kısa cümleler; reklam klişesi ve abartılı ünlem yok.
 
 Sadece geçerli JSON dizisi döndür:
 [{"narration":"...","caption":"...","image_prompt":"..."}]`,
-		scenes, req.DurationSec, req.Brief, req.CompanyContext, narrationRule)
+		scenes, req.DurationSec, langName, req.Brief, req.CompanyContext, narrationRule, langRule)
 
 	provider, model := "openai", "gpt-4o-mini"
 	var p models.SystemPrompt
@@ -263,6 +285,92 @@ func synthesizeSpeech(text, voice, brandName, outPath string) error {
 	return os.WriteFile(outPath, data, 0o644)
 }
 
+// synthesizeGemini — Gemini TTS: metnin dilini algılar ve ana dili konuşan biri gibi seslendirir.
+// Testte Türkçe cümleler (marka adı dahil) birebir doğru anlaşıldı. Çıktı 24 kHz PCM → mp3.
+func synthesizeGemini(text, voice, langName, outPath string) error {
+	key := os.Getenv("GEMINI_API_KEY")
+	if key == "" {
+		return fmt.Errorf("GEMINI_API_KEY yok")
+	}
+	voiceName := "Kore"
+	if voice == "erkek" {
+		voiceName = "Charon"
+	}
+	style := fmt.Sprintf("Read the following aloud as a native %s speaker: warm, friendly and natural like a real person recommending something to a friend, at a natural conversational pace, with clear pronunciation: ", langName)
+	if langName == "Türkçe" {
+		style = "Ana dili Türkçe olan, İstanbul Türkçesiyle konuşan gerçek bir kişi gibi, sıcak, samimi ve doğal bir tonla, doğal konuşma hızında, net telaffuzla oku: "
+	}
+	body, _ := json.Marshal(map[string]interface{}{
+		"contents": []map[string]interface{}{{"parts": []map[string]string{{"text": style + text}}}},
+		"generationConfig": map[string]interface{}{
+			"responseModalities": []string{"AUDIO"},
+			"speechConfig":       map[string]interface{}{"voiceConfig": map[string]interface{}{"prebuiltVoiceConfig": map[string]string{"voiceName": voiceName}}},
+		},
+	})
+	url := GeminiAPIBase + "/gemini-2.5-flash-preview-tts:generateContent?key=" + key
+	resp, err := (&http.Client{Timeout: 90 * time.Second}).Post(url, "application/json", bytes.NewBuffer(body))
+	if err != nil {
+		return err
+	}
+	defer resp.Body.Close()
+	data, _ := io.ReadAll(resp.Body)
+	if resp.StatusCode != http.StatusOK {
+		return fmt.Errorf("Gemini TTS HTTP %d: %.200s", resp.StatusCode, string(data))
+	}
+	var r struct {
+		Candidates []struct {
+			Content struct {
+				Parts []struct {
+					InlineData *struct {
+						Data string `json:"data"`
+					} `json:"inlineData"`
+				} `json:"parts"`
+			} `json:"content"`
+		} `json:"candidates"`
+	}
+	if err := json.Unmarshal(data, &r); err != nil || len(r.Candidates) == 0 || len(r.Candidates[0].Content.Parts) == 0 || r.Candidates[0].Content.Parts[0].InlineData == nil {
+		return fmt.Errorf("Gemini TTS boş yanıt")
+	}
+	pcm, err := base64DecodeImage(r.Candidates[0].Content.Parts[0].InlineData.Data)
+	if err != nil {
+		return err
+	}
+	pcmPath := outPath + ".pcm"
+	if err := os.WriteFile(pcmPath, pcm, 0o644); err != nil {
+		return err
+	}
+	defer os.Remove(pcmPath)
+	if out, err := exec.Command("ffmpeg", "-y", "-loglevel", "error", "-f", "s16le", "-ar", "24000", "-ac", "1", "-i", pcmPath, "-b:a", "160k", outPath).CombinedOutput(); err != nil {
+		return fmt.Errorf("ses dönüştürülemedi: %v %s", err, lastLines(string(out)))
+	}
+	return nil
+}
+
+// speak — önce Gemini (en doğal), olmazsa OpenAI sesi
+func speak(req VideoRequest, text, outPath string) error {
+	code, name := videoLang(req.Language)
+	if code == "tr" {
+		text = SpeakableText(text, ParsePronunciations(req.Pronunciations))
+	} else {
+		for k, v := range ParsePronunciations(req.Pronunciations) {
+			text = strings.ReplaceAll(text, k, v)
+		}
+		// Tamamı büyük harf marka adı (DIO, İNKA) harf harf değil kelime olarak okunsun
+		for _, w := range strings.Fields(req.BrandName) {
+			r := []rune(w)
+			if len(r) >= 3 && strings.ToUpper(w) == w && strings.ToLower(w) != w {
+				text = strings.ReplaceAll(text, w, string(r[0])+strings.ToLower(string(r[1:])))
+			}
+		}
+	}
+	if err := synthesizeGemini(text, req.Voice, name, outPath); err == nil {
+		return nil
+	} else {
+		log.Printf("⚠️ Gemini seslendirme başarısız, OpenAI deneniyor: %v", err)
+	}
+	return synthesizeSpeech(text, req.Voice, req.BrandName, outPath)
+}
+
 func probeDuration(path string) (float64, error) {
 	out, err := exec.Command("ffprobe", "-v", "error", "-show_entries", "format=duration", "-of", "default=nw=1:nk=1", path).Output()
 	if err != nil {
@@ -401,7 +509,7 @@ func RenderVideo(req VideoRequest, scenes []VideoScene, progress ProgressFunc) (
 		durs[i] = math.Max(baseDur, 2.5)
 		if req.Voice != "yok" && strings.TrimSpace(sc.Narration) != "" {
 			p := filepath.Join(work, fmt.Sprintf("voice_%02d.mp3", i))
-			if e := synthesizeSpeech(SpeakableText(sc.Narration, ParsePronunciations(req.Pronunciations)), req.Voice, req.BrandName, p); e != nil {
+			if e := speak(req, sc.Narration, p); e != nil {
 				log.Printf("⚠️ Sahne %d seslendirilemedi: %v", i+1, e)
 			} else if d, e := probeDuration(p); e == nil {
 				audio[i] = p
@@ -424,23 +532,76 @@ func RenderVideo(req VideoRequest, scenes []VideoScene, progress ProgressFunc) (
 		fontSize, maxChars = 56, 24
 	}
 
+	// Marka logosu (şeffaf PNG) — giriş kartı ve köşe logosu için
+	logoPNG := ""
+	if req.Intro && req.LogoURL != "" {
+		p := filepath.Join(work, "logo.png")
+		if e := PrepareLogoPNG(req.LogoURL, p, 700); e != nil {
+			log.Printf("⚠️ Video logosu hazırlanamadı (yalnızca marka adı kullanılacak): %v", e)
+		} else {
+			logoPNG = p
+		}
+	}
+	encode := []string{"-c:v", "libx264", "-preset", "veryfast", "-crf", "21", "-r", "30", "-pix_fmt", "yuv420p",
+		"-c:a", "aac", "-b:a", "160k", "-ar", "44100", "-ac", "2", "-movflags", "+faststart"}
+
 	list := &strings.Builder{}
+
+	// Giriş kartı (≈2 sn): beyaz zemin, ortada şeffaf logo, altında marka renginde ad, en altta marka şeridi
+	if req.Intro {
+		const introDur = 2.0
+		nameFile := filepath.Join(work, "brand.txt")
+		_ = os.WriteFile(nameFile, []byte(req.BrandName), 0o644)
+		brandHex := "0x" + strings.TrimPrefix(primary, "#")
+		nameY := "(h-text_h)/2"
+		if logoPNG != "" {
+			nameY = fmt.Sprintf("h*0.5+%d", int(float64(W)*0.20))
+		}
+		decor := fmt.Sprintf("drawbox=x=0:y=ih-%d:w=iw:h=%d:color=%s:t=fill,"+
+			"drawtext=fontfile=%s:textfile=%s:fontsize=%d:fontcolor=%s:x=(w-text_w)/2:y=%s:alpha='min(1,max(0,(t-0.35)/0.4))'",
+			int(float64(H)*0.06), int(float64(H)*0.06), brandHex, videoFont, nameFile, int(float64(W)*0.07), brandHex, nameY)
+		intro := filepath.Join(work, "intro.mp4")
+		args := []string{"-y", "-f", "lavfi", "-i", fmt.Sprintf("color=c=white:s=%dx%d:r=30:d=%.1f", W, H, introDur)}
+		audioIdx := 1
+		var fc string
+		if logoPNG != "" {
+			args = append(args, "-loop", "1", "-t", fmt.Sprint(introDur), "-i", logoPNG)
+			audioIdx = 2
+			fc = fmt.Sprintf("[1:v]scale=%d:-1,format=rgba,fade=t=in:st=0.1:d=0.45:alpha=1[lg];[0:v]%s[bgc];"+
+				"[bgc][lg]overlay=(W-w)/2:H*0.5-h/2-%d,fade=t=out:st=%.2f:d=0.3,format=yuv420p[v]",
+				int(float64(W)*0.6), decor, int(float64(W)*0.04), introDur-0.3)
+		} else {
+			fc = fmt.Sprintf("[0:v]%s,fade=t=out:st=%.2f:d=0.3,format=yuv420p[v]", decor, introDur-0.3)
+		}
+		args = append(args, "-f", "lavfi", "-t", fmt.Sprint(introDur), "-i", "anullsrc=channel_layout=stereo:sample_rate=44100",
+			"-filter_complex", fc, "-map", "[v]", "-map", fmt.Sprintf("%d:a", audioIdx), "-t", fmt.Sprint(introDur))
+		args = append(args, encode...)
+		args = append(args, intro)
+		if out, e := exec.Command("ffmpeg", args...).CombinedOutput(); e != nil {
+			log.Printf("⚠️ Giriş kartı oluşturulamadı, girişsiz devam: %v — %s", e, lastLines(string(out)))
+		} else {
+			fmt.Fprintf(list, "file '%s'\n", intro)
+		}
+	}
+
 	for i, sc := range scenes {
 		frames := int(math.Ceil(durs[i] * 30))
-		capFile := filepath.Join(work, fmt.Sprintf("cap_%02d.txt", i))
-		_ = os.WriteFile(capFile, []byte(wrapCaption(sc.Caption, maxChars)), 0o644)
 		zoomIn := i%2 == 0
 		zoomExpr := "min(zoom+0.0009,1.15)"
 		if !zoomIn {
 			zoomExpr = "if(eq(on,0),1.15,max(zoom-0.0009,1.0))"
 		}
 		fadeOut := math.Max(durs[i]-0.35, 0.1)
-		vf := fmt.Sprintf(
-			"scale=%d:%d:force_original_aspect_ratio=increase,crop=%d:%d,zoompan=z='%s':x='iw/2-(iw/zoom/2)':y='ih/2-(ih/zoom/2)':d=%d:s=%dx%d:fps=30,"+
-				"drawtext=fontfile=%s:textfile=%s:fontsize=%d:fontcolor=white:line_spacing=14:box=1:boxcolor=%s:boxborderw=28:x=(w-text_w)/2:y=h*0.70,"+
-				"fade=t=in:st=0:d=0.35,fade=t=out:st=%.2f:d=0.35,format=yuv420p",
-			int(float64(W)*1.2), int(float64(H)*1.2), int(float64(W)*1.2), int(float64(H)*1.2), zoomExpr, frames, W, H,
-			videoFont, capFile, fontSize, boxColor, fadeOut)
+		base := fmt.Sprintf(
+			"scale=%d:%d:force_original_aspect_ratio=increase,crop=%d:%d,zoompan=z='%s':x='iw/2-(iw/zoom/2)':y='ih/2-(ih/zoom/2)':d=%d:s=%dx%d:fps=30",
+			int(float64(W)*1.2), int(float64(H)*1.2), int(float64(W)*1.2), int(float64(H)*1.2), zoomExpr, frames, W, H)
+		if req.Subtitles && strings.TrimSpace(sc.Caption) != "" {
+			capFile := filepath.Join(work, fmt.Sprintf("cap_%02d.txt", i))
+			_ = os.WriteFile(capFile, []byte(wrapCaption(sc.Caption, maxChars)), 0o644)
+			base += fmt.Sprintf(",drawtext=fontfile=%s:textfile=%s:fontsize=%d:fontcolor=white:line_spacing=14:box=1:boxcolor=%s:boxborderw=28:x=(w-text_w)/2:y=h*0.70",
+				videoFont, capFile, fontSize, boxColor)
+		}
+		base += fmt.Sprintf(",fade=t=in:st=0:d=0.35,fade=t=out:st=%.2f:d=0.35", fadeOut)
 
 		clip := filepath.Join(work, fmt.Sprintf("clip_%02d.mp4", i))
 		args := []string{"-y", "-loop", "1", "-i", imgPaths[i]}
@@ -449,10 +610,17 @@ func RenderVideo(req VideoRequest, scenes []VideoScene, progress ProgressFunc) (
 		} else {
 			args = append(args, "-f", "lavfi", "-i", "anullsrc=channel_layout=stereo:sample_rate=44100")
 		}
-		args = append(args, "-vf", vf, "-t", fmt.Sprintf("%.2f", durs[i]),
-			"-c:v", "libx264", "-preset", "veryfast", "-crf", "21", "-r", "30",
-			"-c:a", "aac", "-b:a", "160k", "-ar", "44100", "-ac", "2",
-			"-af", fmt.Sprintf("apad,atrim=0:%.2f", durs[i]), "-movflags", "+faststart", clip)
+		fc := "[0:v]" + base + ",format=yuv420p[v]"
+		if logoPNG != "" {
+			// Köşe logosu: küçük ve şeffaf (arkasında kutu yok)
+			lw := int(float64(W) * 0.16)
+			args = append(args, "-i", logoPNG)
+			fc = fmt.Sprintf("[0:v]%s[b];[2:v]scale=%d:-1,format=rgba,colorchannelmixer=aa=0.92[wm];[b][wm]overlay=40:40,format=yuv420p[v]", base, lw)
+		}
+		args = append(args, "-filter_complex", fc, "-map", "[v]", "-map", "1:a", "-t", fmt.Sprintf("%.2f", durs[i]),
+			"-af", fmt.Sprintf("apad,atrim=0:%.2f", durs[i]))
+		args = append(args, encode...)
+		args = append(args, clip)
 		if out, e := exec.Command("ffmpeg", args...).CombinedOutput(); e != nil {
 			return "", "", fmt.Errorf("sahne %d işlenemedi: %v — %.300s", i+1, e, lastLines(string(out)))
 		}

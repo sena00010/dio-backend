@@ -13,6 +13,10 @@ type VideoProject struct {
 	Format        string    `gorm:"size:10" json:"format"`         // 9:16 | 1:1
 	Voice         string    `gorm:"size:20" json:"voice"`          // kadin | erkek | yok
 	Pronunciation string    `gorm:"size:500" json:"pronunciation"` // isteğe bağlı telaffuz eşlemeleri
+	Language      string    `gorm:"size:5" json:"language"`        // tr, en, de...
+	Subtitles     bool      `json:"subtitles"`                     // ekran yazıları
+	Intro         bool      `json:"intro"`                         // logolu marka girişi
+	SourceURL     string    `gorm:"size:500" json:"source_url"`    // içerik kaynağı link
 	Status        string    `gorm:"size:20;index" json:"status"`
 	Stage         string    `gorm:"size:120" json:"stage"` // kullanıcıya gösterilen adım
 	Progress      int       `json:"progress"`              // 0-100

@@ -141,3 +141,11 @@ func TestSpeakableText(t *testing.T) {
 		t.Errorf("override: %q", got)
 	}
 }
+
+func TestFetchPageTextBlocksPrivate(t *testing.T) {
+	for _, u := range []string{"http://127.0.0.1/", "http://localhost:8080/", "http://10.0.0.1/", "http://169.254.169.254/latest/meta-data", "file:///etc/passwd", "ftp://x.com"} {
+		if _, _, err := FetchPageText(u, 1000); err == nil {
+			t.Errorf("%s should be blocked", u)
+		}
+	}
+}

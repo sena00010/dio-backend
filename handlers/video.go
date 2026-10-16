@@ -2,6 +2,7 @@ package handlers
 
 import (
 	"encoding/json"
+	"fmt"
 	"log"
 	"net/http"
 	"strconv"
@@ -21,12 +22,16 @@ type createVideoRequest struct {
 	CompanyID   uint   `json:"company_id" binding:"required"`
 	PostID      *uint  `json:"post_id"`
 	Title       string `json:"title"`
-	Brief       string `json:"brief" binding:"required"`
+	Brief       string `json:"brief"`
 	DurationSec int    `json:"duration_sec"`
 	Format      string `json:"format"`
 	Voice       string `json:"voice"`
 	// İsteğe bağlı: "İNKA=İnka, İK=insan kaynakları"
 	Pronunciation string `json:"pronunciation"`
+	Language      string `json:"language"`
+	Subtitles     *bool  `json:"subtitles"` // varsayılan açık
+	Intro         *bool  `json:"intro"`     // varsayılan açık
+	SourceURL     string `json:"source_url"`
 }
 
 // POST /api/protected/videos — videoyu kuyruğa alır, üretim arka planda sürer
@@ -34,8 +39,23 @@ func CreateVideo(c *gin.Context) {
 	userID := c.MustGet("userID").(uint)
 	var req createVideoRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "İçerik/brief gerekli"})
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Geçersiz istek"})
 		return
+	}
+	req.SourceURL = strings.TrimSpace(req.SourceURL)
+	if strings.TrimSpace(req.Brief) == "" && req.SourceURL == "" {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Videonun anlatacağı metni yazın ya da bir link girin"})
+		return
+	}
+	if _, ok := utils.VideoLanguages[req.Language]; !ok {
+		req.Language = "tr"
+	}
+	subtitles, intro := true, true
+	if req.Subtitles != nil {
+		subtitles = *req.Subtitles
+	}
+	if req.Intro != nil {
+		intro = *req.Intro
 	}
 	var company models.Company
 	if err := database.DB.Where("id = ? AND user_id = ?", req.CompanyID, userID).First(&company).Error; err != nil {
@@ -64,6 +84,9 @@ func CreateVideo(c *gin.Context) {
 	title := strings.TrimSpace(req.Title)
 	if title == "" {
 		title = strings.TrimSpace(req.Brief)
+		if title == "" {
+			title = req.SourceURL
+		}
 		if r := []rune(title); len(r) > 60 {
 			title = string(r[:60]) + "…"
 		}
@@ -72,6 +95,7 @@ func CreateVideo(c *gin.Context) {
 	v := models.VideoProject{
 		CompanyID: company.ID, PostID: req.PostID, Title: title, Brief: req.Brief,
 		DurationSec: req.DurationSec, Format: req.Format, Voice: req.Voice, Pronunciation: truncate(req.Pronunciation, 480),
+		Language: req.Language, Subtitles: subtitles, Intro: intro, SourceURL: truncate(req.SourceURL, 490),
 		Status: "queued", Stage: "Sırada bekliyor", Progress: 2,
 	}
 	if err := database.DB.Create(&v).Error; err != nil {
@@ -102,9 +126,26 @@ func runVideo(id uint, company models.Company) {
 	}
 
 	start := time.Now()
+	brief := v.Brief
+	if v.SourceURL != "" {
+		progress("Link içeriği okunuyor", 3)
+		title, text, err := utils.FetchPageText(v.SourceURL, 6000)
+		if err != nil {
+			fail("Link okunamadı: " + err.Error())
+			return
+		}
+		brief = fmt.Sprintf("KAYNAK SAYFA (%s): %s\n%s", v.SourceURL, title, text)
+		if strings.TrimSpace(v.Brief) != "" {
+			brief += "\n\nKULLANICI NOTU (öncelikli): " + v.Brief
+		}
+		if title != "" && (v.Title == "" || v.Title == v.SourceURL) {
+			update(map[string]interface{}{"title": truncate(title, 250)})
+		}
+	}
 	progress("Senaryo yazılıyor", 5)
 	req := utils.VideoRequest{
-		Brief: v.Brief, CompanyContext: buildCompanyContext(company), BrandName: company.Name,
+		Brief: brief, CompanyContext: buildCompanyContext(company), BrandName: company.Name,
+		Language: v.Language, Subtitles: v.Subtitles, Intro: v.Intro, LogoURL: company.LogoURL,
 		Sector: company.Sector, BrandColors: company.BrandColors,
 		DurationSec: v.DurationSec, Format: v.Format, Voice: v.Voice, Pronunciations: v.Pronunciation,
 	}
