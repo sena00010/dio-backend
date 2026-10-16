@@ -64,7 +64,7 @@ func VideoToolsAvailable() error {
 	return nil
 }
 
-// GenerateVideoScript — süreye göre sahnelere bölünmüş senaryo (~5 sn/sahne, sakin Türkçe seslendirme ~1.6 kelime/sn)
+// GenerateVideoScript — süreye göre sahnelere bölünmüş senaryo (~5 sn/sahne, doğal Türkçe seslendirme ~1.9 kelime/sn)
 func GenerateVideoScript(req VideoRequest) ([]VideoScene, error) {
 	scenes := int(math.Round(float64(req.DurationSec) / 5))
 	if scenes < 3 {
@@ -73,7 +73,7 @@ func GenerateVideoScript(req VideoRequest) ([]VideoScene, error) {
 	if scenes > 36 {
 		scenes = 36
 	}
-	words := int(float64(req.DurationSec) * 1.6)
+	words := int(float64(req.DurationSec) * 1.9)
 	narrationRule := fmt.Sprintf("Seslendirme toplamı yaklaşık %d kelime olsun (sahne başına %d-%d kelime).", words, words/scenes-2, words/scenes+3)
 	if req.Voice == "yok" {
 		narrationRule = "Seslendirme yok; narration alanını kısa tut (sahne başına en fazla 8 kelime), asıl mesaj caption'da."
@@ -92,7 +92,8 @@ YAPI:
 - caption: ekranda görünecek kısa yazı, en fazla 6 kelime, emojisiz.
 - image_prompt: o sahne için İngilizce, gerçekçi, dikey kompozisyonlu görsel tarifi; görselde YAZI olmasın; sahneler görsel olarak tutarlı bir hikâye anlatsın.
 - Doğal, akıcı Türkçe; doğru Türkçe karakterler. Uydurma rakam, müşteri adı veya yorum YOK.
-- narration seslendirilecek: kısaltma KULLANMA, açık yaz (İK → insan kaynakları, KDV → katma değer vergisi); marka adını tamamı büyük harfle değil normal yazımla yaz (İNKA → İnka). caption'da kısaltma kullanılabilir.
+- narration seslendirilecek: kısaltma KULLANMA, açık yaz (İK → insan kaynakları, KDV → katma değer vergisi); "DM'den yazın" yerine "bize mesaj atın" gibi konuşma dilini kullan; marka adını tamamı büyük harfle değil normal yazımla yaz (İNKA → İnka). caption'da kısaltma kullanılabilir.
+- narration gerçek bir insanın konuşması gibi olsun: samimi, günlük konuşma dili, kısa cümleler; reklam klişesi ve abartılı ünlem yok.
 
 Sadece geçerli JSON dizisi döndür:
 [{"narration":"...","caption":"...","image_prompt":"..."}]`,
@@ -141,7 +142,7 @@ var trLetterNames = map[rune]string{
 }
 
 // Kelime gibi okunan kısa kısaltmalar
-var acronymWords = map[string]string{"SEO": "seo", "NATO": "nato", "KOBİ": "kobi", "AVM": "a ve me"}
+var acronymWords = map[string]string{"SEO": "seo", "NATO": "nato", "KOBİ": "kobi", "AVM": "a ve me", "DM": "di em", "CEO": "si i o", "AI": "yapay zekâ"}
 
 // ParsePronunciations — "İNKA=İnka, İK=insan kaynakları" → eşleme
 func ParsePronunciations(s string) map[string]string {
@@ -211,7 +212,7 @@ func SpeakableText(text string, overrides map[string]string) string {
 
 // speechInstructions — sakin tempo + marka adının net telaffuzu (testte en tutarlı sonuç)
 func speechInstructions(brandName string) string {
-	ins := "Türkçe konuş. Sakin, net ve anlaşılır bir tanıtım seslendirmesi yap; orta tempoda, kesinlikle acele etme. Cümle aralarında kısa, doğal duraklamalar ver."
+	ins := "Türkçe konuş. Reklam spikeri gibi değil, gerçek bir insan gibi sıcak ve samimi konuş; doğal tonlama ve vurgular kullan. Doğal sohbet hızında. Her kelimeyi net ve anlaşılır telaffuz et; heceleri yutma. Cümle aralarında kısa, doğal nefes duraklamaları ver."
 	if name := strings.TrimSpace(SpeakableText(brandName, nil)); name != "" {
 		ins += fmt.Sprintf(" Marka adı %q özenle ve net telaffuz edilir; hecelerini yutma, başına ya da sonuna ses ekleme.", name)
 	}
@@ -224,28 +225,40 @@ func synthesizeSpeech(text, voice, brandName, outPath string) error {
 	if apiKey == "" {
 		return fmt.Errorf("OPENAI_API_KEY yok")
 	}
-	v := "coral"
+	// En doğal (insan gibi) sesler; desteklenmezse eski seslere düşülür
+	v, fallback := "marin", "coral"
 	if voice == "erkek" {
-		v = "onyx"
+		v, fallback = "cedar", "onyx"
 	}
-	body, _ := json.Marshal(map[string]interface{}{
-		"model":           "gpt-4o-mini-tts",
-		"voice":           v,
-		"input":           text,
-		"instructions":    speechInstructions(brandName),
-		"response_format": "mp3",
-	})
-	req, _ := http.NewRequest("POST", "https://api.openai.com/v1/audio/speech", bytes.NewBuffer(body))
-	req.Header.Set("Content-Type", "application/json")
-	req.Header.Set("Authorization", "Bearer "+apiKey)
-	resp, err := (&http.Client{Timeout: 90 * time.Second}).Do(req)
+	call := func(voiceName string) ([]byte, int, error) {
+		body, _ := json.Marshal(map[string]interface{}{
+			"model":           "gpt-4o-mini-tts",
+			"voice":           voiceName,
+			"input":           text,
+			"instructions":    speechInstructions(brandName),
+			"response_format": "mp3",
+		})
+		req, _ := http.NewRequest("POST", "https://api.openai.com/v1/audio/speech", bytes.NewBuffer(body))
+		req.Header.Set("Content-Type", "application/json")
+		req.Header.Set("Authorization", "Bearer "+apiKey)
+		resp, err := (&http.Client{Timeout: 90 * time.Second}).Do(req)
+		if err != nil {
+			return nil, 0, err
+		}
+		defer resp.Body.Close()
+		data, _ := io.ReadAll(resp.Body)
+		return data, resp.StatusCode, nil
+	}
+	data, status, err := call(v)
+	if err == nil && status >= 400 && status < 500 {
+		log.Printf("⚠️ TTS sesi %q kullanılamadı (%d), %q deneniyor", v, status, fallback)
+		data, status, err = call(fallback)
+	}
 	if err != nil {
 		return err
 	}
-	defer resp.Body.Close()
-	data, _ := io.ReadAll(resp.Body)
-	if resp.StatusCode != http.StatusOK {
-		return fmt.Errorf("TTS HTTP %d: %.200s", resp.StatusCode, string(data))
+	if status != http.StatusOK {
+		return fmt.Errorf("TTS HTTP %d: %.200s", status, string(data))
 	}
 	return os.WriteFile(outPath, data, 0o644)
 }
