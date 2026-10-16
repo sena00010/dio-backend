@@ -149,3 +149,15 @@ func TestFetchPageTextBlocksPrivate(t *testing.T) {
 		}
 	}
 }
+
+func TestFormatTimestampAndPlatforms(t *testing.T) {
+	if FormatTimestamp(75.3) != "1:15" || FormatTimestamp(4) != "0:04" {
+		t.Error("timestamp format")
+	}
+	if _, p := videoPlatform("youtube"); p.Format != "16:9" {
+		t.Error("youtube should be 16:9")
+	}
+	if c, _ := videoPlatform("bilinmeyen"); c != "instagram" {
+		t.Error("default platform")
+	}
+}

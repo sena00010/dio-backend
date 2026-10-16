@@ -17,6 +17,10 @@ type VideoProject struct {
 	Subtitles     bool      `json:"subtitles"`                     // ekran yazıları
 	Intro         bool      `json:"intro"`                         // logolu marka girişi
 	SourceURL     string    `gorm:"size:500" json:"source_url"`    // içerik kaynağı link
+	Platform      string    `gorm:"size:20" json:"platform"`       // instagram | tiktok | youtube_shorts | youtube
+	PostTitle     string    `gorm:"size:255" json:"post_title"`    // mecraya hazır paylaşım metni
+	PostText      string    `gorm:"type:text" json:"post_text"`
+	Hashtags      string    `gorm:"size:500" json:"hashtags"`
 	Status        string    `gorm:"size:20;index" json:"status"`
 	Stage         string    `gorm:"size:120" json:"stage"` // kullanıcıya gösterilen adım
 	Progress      int       `json:"progress"`              // 0-100

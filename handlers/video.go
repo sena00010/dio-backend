@@ -32,6 +32,7 @@ type createVideoRequest struct {
 	Subtitles     *bool  `json:"subtitles"` // varsayılan açık
 	Intro         *bool  `json:"intro"`     // varsayılan açık
 	SourceURL     string `json:"source_url"`
+	Platform      string `json:"platform"`
 }
 
 // POST /api/protected/videos — videoyu kuyruğa alır, üretim arka planda sürer
@@ -73,8 +74,12 @@ func CreateVideo(c *gin.Context) {
 	if req.DurationSec > 180 {
 		req.DurationSec = 180
 	}
-	if req.Format != "1:1" {
-		req.Format = "9:16"
+	// Format ve azami süre mecraya göre
+	platCode, plat := videoPlatformOf(req.Platform)
+	req.Platform = platCode
+	req.Format = plat.Format
+	if req.DurationSec > plat.MaxSec {
+		req.DurationSec = plat.MaxSec
 	}
 	switch req.Voice {
 	case "kadin", "erkek", "yok":
@@ -95,7 +100,7 @@ func CreateVideo(c *gin.Context) {
 	v := models.VideoProject{
 		CompanyID: company.ID, PostID: req.PostID, Title: title, Brief: req.Brief,
 		DurationSec: req.DurationSec, Format: req.Format, Voice: req.Voice, Pronunciation: truncate(req.Pronunciation, 480),
-		Language: req.Language, Subtitles: subtitles, Intro: intro, SourceURL: truncate(req.SourceURL, 490),
+		Language: req.Language, Subtitles: subtitles, Intro: intro, SourceURL: truncate(req.SourceURL, 490), Platform: req.Platform,
 		Status: "queued", Stage: "Sırada bekliyor", Progress: 2,
 	}
 	if err := database.DB.Create(&v).Error; err != nil {
@@ -145,7 +150,7 @@ func runVideo(id uint, company models.Company) {
 	progress("Senaryo yazılıyor", 5)
 	req := utils.VideoRequest{
 		Brief: brief, CompanyContext: buildCompanyContext(company), BrandName: company.Name,
-		Language: v.Language, Subtitles: v.Subtitles, Intro: v.Intro, LogoURL: company.LogoURL,
+		Language: v.Language, Subtitles: v.Subtitles, Intro: v.Intro, LogoURL: company.LogoURL, Platform: v.Platform,
 		Sector: company.Sector, BrandColors: company.BrandColors,
 		DurationSec: v.DurationSec, Format: v.Format, Voice: v.Voice, Pronunciations: v.Pronunciation,
 	}
@@ -162,8 +167,24 @@ func runVideo(id uint, company models.Company) {
 		fail(err.Error())
 		return
 	}
+	// Zaman akışlı senaryo ve mecraya hazır paylaşım metni
+	timed, _ := json.Marshal(scenes)
+	update(map[string]interface{}{"script": string(timed)})
+	progress("Paylaşım metni yazılıyor", 98)
+	if cp, e := utils.GenerateVideoCopy(req, scenes); e == nil {
+		update(map[string]interface{}{"post_title": truncate(cp.Title, 250), "post_text": cp.Caption, "hashtags": truncate(cp.Hashtags, 480)})
+	} else {
+		log.Printf("⚠️ Video %d paylaşım metni üretilemedi: %v", id, e)
+	}
 	update(map[string]interface{}{"status": "done", "stage": "Hazır", "progress": 100, "video_url": url, "thumb_url": thumb, "error": ""})
 	log.Printf("🎬 Video %d hazır (%d sahne, %v): %s", id, len(scenes), time.Since(start).Round(time.Second), url)
+}
+
+func videoPlatformOf(code string) (string, utils.VideoPlatform) {
+	if p, ok := utils.VideoPlatforms[code]; ok {
+		return code, p
+	}
+	return "instagram", utils.VideoPlatforms["instagram"]
 }
 
 func truncate(s string, n int) string {

@@ -27,9 +27,47 @@ import (
 
 // VideoScene — senaryonun bir sahnesi
 type VideoScene struct {
-	Narration   string `json:"narration"`    // seslendirme metni
-	Caption     string `json:"caption"`      // ekran yazısı (kısa)
-	ImagePrompt string `json:"image_prompt"` // İngilizce görsel tarifi
+	Narration   string  `json:"narration"`       // seslendirme metni
+	Caption     string  `json:"caption"`         // ekran yazısı (kısa)
+	ImagePrompt string  `json:"image_prompt"`    // İngilizce görsel tarifi
+	Start       float64 `json:"start,omitempty"` // videodaki başlangıç saniyesi (montajdan sonra)
+	End         float64 `json:"end,omitempty"`
+}
+
+// VideoPlatform — mecraya göre format, kurgu ve paylaşım kuralları
+type VideoPlatform struct {
+	Label   string
+	Format  string // 9:16 | 16:9
+	MaxSec  int
+	Guide   string // senaryo kurgusu
+	CTA     string
+	CopyFmt string // paylaşım metni kuralları
+}
+
+var VideoPlatforms = map[string]VideoPlatform{
+	"instagram": {"Instagram Reels", "9:16", 90,
+		"Instagram Reels: ilk 1,5 saniyede görsel ve sözel kanca; estetik, akıcı geçişler; her sahne tek mesaj; ses kapalı izleyenler için ekran yazısı tek başına anlaşılır olmalı.",
+		"kaydet, paylaş veya bize mesaj at",
+		"Instagram açıklaması: ilk satır kanca, 2-3 kısa paragraf, tek net CTA; sonunda 6-10 niş hashtag."},
+	"tiktok": {"TikTok", "9:16", 180,
+		"TikTok: ilk 1 saniyede çok güçlü, merak uyandıran kanca; samimi, konuşur gibi, doğal ve hızlı tempo; reklam gibi değil içerik üreticisi gibi; sahneler kısa ve dinamik.",
+		"takip et veya yorumlara yaz",
+		"TikTok açıklaması: tek-iki kısa cümle, merak uyandıran; sonunda 3-5 hashtag (biri geniş, diğerleri niş)."},
+	"youtube_shorts": {"YouTube Shorts", "9:16", 60,
+		"YouTube Shorts: ilk 2 saniyede net bir değer vaadi; bilgi yoğun ama hızlı; döngüye girecek şekilde son cümle başa bağlansın.",
+		"abone ol",
+		"YouTube Shorts: başlık en fazla 60 karakter (merak + anahtar kelime) ve 1-2 cümlelik açıklama; sonunda #shorts dahil 3 hashtag."},
+	"youtube": {"YouTube (yatay)", "16:9", 180,
+		"YouTube yatay video: ilk 5 saniyede videonun ne kazandıracağını söyle; daha açıklayıcı ve sakin anlatım; sahneler mantıklı bölümler halinde ilerlesin.",
+		"abone ol ve bildirimleri aç",
+		"YouTube: başlık en fazla 70 karakter (anahtar kelime başta), 3-5 cümlelik açıklama; sonunda 3-5 hashtag."},
+}
+
+func videoPlatform(code string) (string, VideoPlatform) {
+	if p, ok := VideoPlatforms[code]; ok {
+		return code, p
+	}
+	return "instagram", VideoPlatforms["instagram"]
 }
 
 // VideoRequest — üretim parametreleri
@@ -44,6 +82,7 @@ type VideoRequest struct {
 	Voice          string // kadin | erkek | yok
 	Pronunciations string // isteğe bağlı "İNKA=İnka" satırları (virgül veya satır ile ayrılmış)
 	Language       string // tr, en, de, fr, es, ar, ru, az, nl, it (boşsa tr)
+	Platform       string // instagram | tiktok | youtube_shorts | youtube
 	Subtitles      bool   // ekran yazıları
 	Intro          bool   // logolu marka girişi + köşe logosu
 	LogoURL        string
@@ -97,29 +136,35 @@ func GenerateVideoScript(req VideoRequest) ([]VideoScene, error) {
 	}
 
 	langCode, langName := videoLang(req.Language)
+	_, plat := videoPlatform(req.Platform)
+	orientation := "dikey (9:16)"
+	if plat.Format == "16:9" {
+		orientation = "yatay (16:9)"
+	}
 	langRule := "- Doğal, akıcı Türkçe; doğru Türkçe karakterler. Uydurma rakam, müşteri adı veya yorum YOK.\n" +
 		"- narration seslendirilecek: kısaltma KULLANMA, açık yaz (İK → insan kaynakları, KDV → katma değer vergisi); \"DM'den yazın\" yerine \"bize mesaj atın\" gibi konuşma dilini kullan; marka adını tamamı büyük harfle değil normal yazımla yaz (İNKA → İnka). caption'da kısaltma kullanılabilir."
 	if langCode != "tr" {
 		langRule = fmt.Sprintf("- narration ve caption TAMAMEN %s dilinde, o dili ana dili olarak konuşan birinin doğal günlük ifadeleriyle yazılsın (çeviri kokmasın). Uydurma rakam, müşteri adı veya yorum YOK.\n- narration'da kısaltma kullanma, açık yaz; marka adını normal yazımla yaz.", langName)
 	}
-	prompt := fmt.Sprintf(`Sen dünyanın en iyi kısa video (Reels/TikTok) senaristisin. Aşağıdaki içerik için TAM OLARAK %d sahnelik, toplam yaklaşık %d saniyelik dikey bir video senaryosu yaz. Video dili: %s.
+	prompt := fmt.Sprintf(`Sen dünyanın en iyi kısa video (Reels/TikTok) senaristisin. Aşağıdaki içerik için TAM OLARAK %d sahnelik, toplam yaklaşık %d saniyelik bir video senaryosu yaz. Video dili: %s.
 
 İÇERİK / BRIEF: %s
 MARKA BAĞLAMI: %s
 
-YAPI:
-- 1. sahne: ilk 2 saniyede izleyiciyi durduran güçlü bir kanca (soru, şaşırtıcı bilgi, cesur iddia).
-- Ortadaki sahneler: her biri tek somut fikir; akıcı, birbirine bağlanan anlatım.
-- Son sahne: net harekete çağrı (takip et, DM, kaydet, linke tıkla) ve marka adı.
+MECRA: %s
+YAPI (mecraya ve süreye göre içeriği yeniden kurgula; kaynak metni olduğu gibi okuma, özünü al):
+- 1. sahne: kanca (soru, şaşırtıcı bilgi, cesur iddia).
+- Ortadaki sahneler: her biri tek somut fikir; akıcı, birbirine bağlanan anlatım; süreye sığmayan detayları çıkar.
+- Son sahne: net harekete çağrı (%s) ve marka adı.
 - %s
 - caption: ekranda görünecek kısa yazı, en fazla 6 kelime, emojisiz.
-- image_prompt: o sahne için İngilizce, gerçekçi, dikey kompozisyonlu görsel tarifi; görselde YAZI olmasın; sahneler görsel olarak tutarlı bir hikâye anlatsın.
+- image_prompt: o sahne için İngilizce, gerçekçi, %s kompozisyonlu görsel tarifi; görselde YAZI olmasın; sahneler görsel olarak tutarlı bir hikâye anlatsın.
 %s
 - narration gerçek bir insanın konuşması gibi olsun: samimi, günlük konuşma dili, kısa cümleler; reklam klişesi ve abartılı ünlem yok.
 
 Sadece geçerli JSON dizisi döndür:
 [{"narration":"...","caption":"...","image_prompt":"..."}]`,
-		scenes, req.DurationSec, langName, req.Brief, req.CompanyContext, narrationRule, langRule)
+		scenes, req.DurationSec, langName, req.Brief, req.CompanyContext, plat.Guide, plat.CTA, narrationRule, orientation, langRule)
 
 	provider, model := "openai", "gpt-4o-mini"
 	var p models.SystemPrompt
@@ -437,8 +482,15 @@ func RenderVideo(req VideoRequest, scenes []VideoScene, progress ProgressFunc) (
 
 	ratio := "9:16"
 	W, H := 1080, 1920
-	if req.Format == "1:1" {
+	switch req.Format {
+	case "1:1":
 		ratio, W, H = "1:1", 1080, 1080
+	case "16:9":
+		ratio, W, H = "16:9", 1920, 1080
+	}
+	S := W // kısa kenar: logo/yazı ölçüleri buna göre
+	if H < W {
+		S = H
 	}
 	n := len(scenes)
 
@@ -528,8 +580,11 @@ func RenderVideo(req VideoRequest, scenes []VideoScene, progress ProgressFunc) (
 	boxColor := "0x" + strings.TrimPrefix(primary, "#") + "@0.88"
 	fontSize := 64
 	maxChars := 18
-	if ratio == "1:1" {
+	switch ratio {
+	case "1:1":
 		fontSize, maxChars = 56, 24
+	case "16:9":
+		fontSize, maxChars = 56, 34
 	}
 
 	// Marka logosu (şeffaf PNG) — giriş kartı ve köşe logosu için
@@ -546,6 +601,7 @@ func RenderVideo(req VideoRequest, scenes []VideoScene, progress ProgressFunc) (
 		"-c:a", "aac", "-b:a", "160k", "-ar", "44100", "-ac", "2", "-movflags", "+faststart"}
 
 	list := &strings.Builder{}
+	timeline := 0.0 // sahnelerin videodaki başlangıç saniyesi (giriş kartı dahil)
 
 	// Giriş kartı (≈2 sn): beyaz zemin, ortada şeffaf logo, altında marka renginde ad, en altta marka şeridi
 	if req.Intro {
@@ -555,11 +611,11 @@ func RenderVideo(req VideoRequest, scenes []VideoScene, progress ProgressFunc) (
 		brandHex := "0x" + strings.TrimPrefix(primary, "#")
 		nameY := "(h-text_h)/2"
 		if logoPNG != "" {
-			nameY = fmt.Sprintf("h*0.5+%d", int(float64(W)*0.20))
+			nameY = fmt.Sprintf("h*0.5+%d", int(float64(S)*0.20))
 		}
 		decor := fmt.Sprintf("drawbox=x=0:y=ih-%d:w=iw:h=%d:color=%s:t=fill,"+
 			"drawtext=fontfile=%s:textfile=%s:fontsize=%d:fontcolor=%s:x=(w-text_w)/2:y=%s:alpha='min(1,max(0,(t-0.35)/0.4))'",
-			int(float64(H)*0.06), int(float64(H)*0.06), brandHex, videoFont, nameFile, int(float64(W)*0.07), brandHex, nameY)
+			int(float64(H)*0.06), int(float64(H)*0.06), brandHex, videoFont, nameFile, int(float64(S)*0.07), brandHex, nameY)
 		intro := filepath.Join(work, "intro.mp4")
 		args := []string{"-y", "-f", "lavfi", "-i", fmt.Sprintf("color=c=white:s=%dx%d:r=30:d=%.1f", W, H, introDur)}
 		audioIdx := 1
@@ -569,7 +625,7 @@ func RenderVideo(req VideoRequest, scenes []VideoScene, progress ProgressFunc) (
 			audioIdx = 2
 			fc = fmt.Sprintf("[1:v]scale=%d:-1,format=rgba,fade=t=in:st=0.1:d=0.45:alpha=1[lg];[0:v]%s[bgc];"+
 				"[bgc][lg]overlay=(W-w)/2:H*0.5-h/2-%d,fade=t=out:st=%.2f:d=0.3,format=yuv420p[v]",
-				int(float64(W)*0.6), decor, int(float64(W)*0.04), introDur-0.3)
+				int(float64(S)*0.6), decor, int(float64(S)*0.04), introDur-0.3)
 		} else {
 			fc = fmt.Sprintf("[0:v]%s,fade=t=out:st=%.2f:d=0.3,format=yuv420p[v]", decor, introDur-0.3)
 		}
@@ -581,6 +637,7 @@ func RenderVideo(req VideoRequest, scenes []VideoScene, progress ProgressFunc) (
 			log.Printf("⚠️ Giriş kartı oluşturulamadı, girişsiz devam: %v — %s", e, lastLines(string(out)))
 		} else {
 			fmt.Fprintf(list, "file '%s'\n", intro)
+			timeline = introDur
 		}
 	}
 
@@ -613,7 +670,7 @@ func RenderVideo(req VideoRequest, scenes []VideoScene, progress ProgressFunc) (
 		fc := "[0:v]" + base + ",format=yuv420p[v]"
 		if logoPNG != "" {
 			// Köşe logosu: küçük ve şeffaf (arkasında kutu yok)
-			lw := int(float64(W) * 0.16)
+			lw := int(float64(S) * 0.16)
 			args = append(args, "-i", logoPNG)
 			fc = fmt.Sprintf("[0:v]%s[b];[2:v]scale=%d:-1,format=rgba,colorchannelmixer=aa=0.92[wm];[b][wm]overlay=40:40,format=yuv420p[v]", base, lw)
 		}
@@ -625,6 +682,9 @@ func RenderVideo(req VideoRequest, scenes []VideoScene, progress ProgressFunc) (
 			return "", "", fmt.Errorf("sahne %d işlenemedi: %v — %.300s", i+1, e, lastLines(string(out)))
 		}
 		fmt.Fprintf(list, "file '%s'\n", clip)
+		scenes[i].Start = math.Round(timeline*10) / 10
+		timeline += durs[i]
+		scenes[i].End = math.Round(timeline*10) / 10
 		progress(fmt.Sprintf("Video montajı (%d/%d)", i+1, n), 70+(i+1)*25/n)
 	}
 
@@ -658,6 +718,84 @@ func RenderVideo(req VideoRequest, scenes []VideoScene, progress ProgressFunc) (
 		return "", "", err
 	}
 	return "/uploads/videos/" + name, thumbURL, nil
+}
+
+// VideoCopy — mecraya hazır paylaşım metni
+type VideoCopy struct {
+	Title    string `json:"title"`
+	Caption  string `json:"caption"`
+	Hashtags string `json:"hashtags"`
+}
+
+// FormatTimestamp — 75.3 → "1:15"
+func FormatTimestamp(sec float64) string {
+	t := int(sec)
+	return fmt.Sprintf("%d:%02d", t/60, t%60)
+}
+
+// GenerateVideoCopy — videonun senaryosundan mecraya uygun başlık/açıklama/hashtag üretir.
+// Yatay YouTube videolarında açıklamaya zaman akışından bölüm işaretleri eklenir.
+func GenerateVideoCopy(req VideoRequest, scenes []VideoScene) (VideoCopy, error) {
+	_, plat := videoPlatform(req.Platform)
+	_, langName := videoLang(req.Language)
+	var b strings.Builder
+	for _, sc := range scenes {
+		fmt.Fprintf(&b, "- [%s] %s / %s\n", FormatTimestamp(sc.Start), sc.Caption, sc.Narration)
+	}
+	prompt := fmt.Sprintf(`Aşağıdaki %s videosu için paylaşım metni yaz. Dil: %s. Marka: %s.
+KURALLAR: %s Uydurma rakam/yorum yok, doğal ve samimi dil.
+VİDEO AKIŞI:
+%s
+Sadece JSON döndür: {"title":"...","caption":"...","hashtags":"#... #..."}  (Instagram/TikTok için title kısa bir kapak başlığı olsun)`,
+		plat.Label, langName, req.BrandName, plat.CopyFmt, b.String())
+
+	provider, model := "openai", "gpt-4o-mini"
+	var p models.SystemPrompt
+	if database.DB != nil && database.DB.Where("prompt_key = ?", "content_idea_generator").First(&p).Error == nil {
+		if p.AiProvider != "" {
+			provider = strings.ToLower(p.AiProvider)
+		}
+		if p.AiModel != "" {
+			model = p.AiModel
+		}
+	}
+	var text string
+	var err error
+	if provider == "gemini" {
+		text, err = callGeminiText(model, prompt)
+	} else {
+		text, err = callOpenAIText(model, prompt)
+	}
+	if err != nil {
+		return VideoCopy{}, err
+	}
+	start, end := strings.Index(text, "{"), strings.LastIndex(text, "}")
+	if start < 0 || end <= start {
+		return VideoCopy{}, fmt.Errorf("paylaşım metni JSON değil")
+	}
+	var c VideoCopy
+	if err := json.Unmarshal([]byte(fixAIJSON(text[start:end+1])), &c); err != nil {
+		return VideoCopy{}, err
+	}
+	// YouTube bölümleri: ilk 0:00 olmalı, en az 3 bölüm ve her biri ≥10 sn
+	if req.Platform == "youtube" && len(scenes) >= 3 {
+		var ch []string
+		last := -10.0
+		for i, sc := range scenes {
+			start := sc.Start
+			if i == 0 {
+				start = 0
+			}
+			if start-last >= 10 || i == 0 {
+				ch = append(ch, FormatTimestamp(start)+" "+sc.Caption)
+				last = start
+			}
+		}
+		if len(ch) >= 3 {
+			c.Caption = strings.TrimSpace(c.Caption) + "\n\nBölümler:\n" + strings.Join(ch, "\n")
+		}
+	}
+	return c, nil
 }
 
 func lastLines(s string) string {
