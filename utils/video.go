@@ -248,7 +248,7 @@ func RenderVideo(req VideoRequest, scenes []VideoScene, progress ProgressFunc) (
 			defer func() { <-sem }()
 			url, e := GenerateBrandImage(BrandContext{
 				BrandName: req.BrandName, Sector: req.Sector, BrandColors: req.BrandColors,
-				ImagePrompt: sc.ImagePrompt, Style: "realistic", AspectRatio: ratio, TextPosition: "bottom_center",
+				ImagePrompt: sc.ImagePrompt + ". Keep the lower third calm and uncluttered.", Style: "realistic", AspectRatio: ratio,
 			})
 			if e == nil {
 				p := filepath.Join(work, fmt.Sprintf("img_%02d.png", i))

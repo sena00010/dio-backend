@@ -1261,7 +1261,7 @@ func BuildProfessionalImagePrompt(ctx BrandContext) string {
 			logoPos = " and " + strings.ReplaceAll(parts[1], "_", " ")
 		}
 		
-		textZoneHint += fmt.Sprintf("\n- Spatial Design Rule: You MUST leave the %s%s area extremely clean, uncluttered, subtly darker, and completely free of any complex subject matter. This negative space is CRITICAL because a logo and promotional text will be placed exactly there.", textPos, logoPos)
+		textZoneHint += fmt.Sprintf("\n- Spatial Design Rule: You MUST leave the %s%s area extremely clean, uncluttered, subtly darker, and completely free of any complex subject matter. This negative space is CRITICAL: overlays are added later by the designer — do NOT draw any logo, placeholder, word or letters there yourself.", textPos, logoPos)
 	}
 
 	// Sektör ipucu
