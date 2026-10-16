@@ -36,6 +36,7 @@ func Connect() {
 		&models.AiSchedule{},
 		&models.Post{},
 		&models.PostSlide{},
+		&models.VideoProject{},
 		&models.AiIdea{},
 		&models.TeamMember{},
 		&models.SeoIntegration{},

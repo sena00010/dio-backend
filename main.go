@@ -127,6 +127,8 @@ func main() {
 		api.POST("/protected/posts/:id/carousel", handlers.GenerateCarousel)
 		api.PUT("/protected/posts/:id/carousel", handlers.SaveCarousel)
 		api.POST("/protected/posts/:id/auto-layout", handlers.AutoLayoutPost)
+		api.GET("/protected/videos", handlers.ListVideos)
+		api.POST("/protected/videos", handlers.CreateVideo)
 		api.POST("/protected/generate-image", handlers.GeneratePostImage)
 		api.POST("/protected/generate-multiple-images", handlers.GenerateMultipleImages)
 		api.POST("/protected/select-image", handlers.SelectImage)

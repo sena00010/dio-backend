@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"image"
 	"image/png"
+	"strings"
 	"testing"
 	"time"
 )
@@ -115,5 +116,17 @@ func TestAvoidSubject(t *testing.T) {
 	}
 	if !isLightHex("#ffffff") || isLightHex("#222222") {
 		t.Error("isLightHex wrong")
+	}
+}
+
+func TestWrapCaption(t *testing.T) {
+	got := wrapCaption("Güne iyi bir kahveyle başlayın bugün", 18)
+	for _, line := range strings.Split(got, "\n") {
+		if len([]rune(line)) > 18 {
+			t.Errorf("line too long: %q", line)
+		}
+	}
+	if strings.ReplaceAll(got, "\n", " ") != "Güne iyi bir kahveyle başlayın bugün" {
+		t.Errorf("words changed: %q", got)
 	}
 }
